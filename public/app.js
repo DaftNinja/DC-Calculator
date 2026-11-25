@@ -460,8 +460,9 @@ function update() {
   if (!baselineIrrChart && byId("baselineIrrChart")) {
     initBaselineIrrChart();
   }
-  const irrOverTime = cfBase.map(function(_, yr) {
-    if (yr < 2) return null;
+  const irrGateYr = Math.max(2, Math.min(6, Math.ceil(totalWeeks / 52)));
+  const irrOverTime = cfBase.map(function(cfVal, yr) {
+    if (yr < irrGateYr) return null;
     const windowCfs = [];
     for (let i = 0; i <= yr; i++) {
       let amt = cfBase[i];
@@ -483,6 +484,11 @@ function update() {
     const r = computeTimedIRR(windowCfs);
     return isFinite(r) ? +(r * 100).toFixed(1) : null;
   });
+const hasPos = windowCfs.some(function(p) { return p[1] > 0; });
+    if (!hasNeg || !hasPos) return null;
+    const r = computeTimedIRR(windowCfs);
+    return isFinite(r) ? +(r * 100).toFixed(1) : null;
+  // removed orphaned closing parenthesis
   if (baselineIrrChart && baselineIrrChart.data && Array.isArray(baselineIrrChart.data.datasets)) {
     if (baselineIrrChart.data.datasets[0]) baselineIrrChart.data.datasets[0].data = irrOverTime;
     if (baselineIrrChart.data.datasets[1]) baselineIrrChart.data.datasets[1].data = [];
