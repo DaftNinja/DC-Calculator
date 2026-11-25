@@ -1,3 +1,5 @@
+"use strict";
+
 const DEFAULTS = {
   grdMw: 2.5,
   halls: 4,
@@ -12,85 +14,46 @@ const DEFAULTS = {
   ofciWeeks: 38,
   ofciPct: 35,
   ltc: 0,
-  debtRate: 0,
-  yocInput: 9.20
+  debtRate: 0.0,
+  yocInput: 9.2
 };
 
-const els = {
-  grdMw: document.getElementById("grdMw"),
-  halls: document.getElementById("halls"),
-  costPerMw: document.getElementById("costPerMw"),
-  rentPerMw: document.getElementById("rentPerMw"),
-  lockNoi: document.getElementById("lockNoi"),
-  targetNoi: document.getElementById("targetNoi"),
-  landWeeks: document.getElementById("landWeeks"),
-  landPct: document.getElementById("landPct"),
-  shellWeeks: document.getElementById("shellWeeks"),
-  shellPct: document.getElementById("shellPct"),
-  ofciWeeks: document.getElementById("ofciWeeks"),
-  ofciPct: document.getElementById("ofciPct"),
-  ltc: document.getElementById("ltc"),
-  debtRate: document.getElementById("debtRate"),
-  yocInput: document.getElementById("yocInput")
+let phaseBudgets = {
+  land: DEFAULTS.landPct,
+  shell: DEFAULTS.shellPct,
+  ofci: DEFAULTS.ofciPct
 };
 
-function computeTimedIRR(timedCfs) {
-  const valid = timedCfs.filter(([, amt]) => Math.abs(amt) > 1e-9);
-  if (valid.length < 2) return NaN;
-  let lo = -0.5, hi = 3.0;
-  const npvAt = r => valid.reduce((acc, [t, amt]) => acc + amt / Math.pow(1 + r, t), 0);
-  if (npvAt(lo) < 0 || npvAt(hi) > 0) return NaN;
-  for (let i = 0; i < 120; i++) {
-    const mid = (lo + hi) / 2;
-    if (npvAt(mid) > 0) lo = mid;
-    else hi = mid;
-  }
-  return (lo + hi) / 2;
+function byId(id) {
+  return document.getElementById(id);
 }
 
-function cumulative(a) {
-  let s = 0;
-  return a.map(v => +(s += v).toFixed(1));
+function setText(id, text) {
+  const el = byId(id);
+  if (el) el.textContent = text;
 }
 
-function fmtM(v) {
-  if (v === null || v === undefined) return "—";
-  return `${v < 0 ? "-" : ""}£${Math.abs(v).toFixed(1)}M`;
+function fmtM(val) {
+  if (!isFinite(val)) return "£0.0M";
+  const sign = val < 0 ? "-" : "";
+  return sign + "£" + Math.abs(val).toFixed(1) + "M";
 }
 
-const chart = new Chart(document.getElementById("cfChart").getContext("2d"), {
-  type: "line",
-  data: {
-    labels: ["Yr 0", "Yr 1", "Yr 2", "Yr 3", "Yr 4", "Yr 5", "Yr 6"],
-    datasets: [
-      { label: "Baseline (On-Time)", data: [], borderColor: "#38bdf8", tension: 0.25, borderWidth: 2.5 },
-      { label: "Phased Power + Staged OFCI", data: [], borderColor: "#34d399", tension: 0.25, borderWidth: 2.5 },
-      { label: "Phased Power (Upfront OFCI)", data: [], borderColor: "#a78bfa", tension: 0.25, borderWidth: 2 },
-      { label: "12-Mo Grid Delay (Yr 6 Exit)", data: [], borderColor: "#f87171", tension: 0.25, borderWidth: 2.5, borderDash: [6, 4] },
-      { label: "100% Pre-Leased (Exit RFS + 9 Mos)", data: [], borderColor: "#fbbf24", tension: 0.25, borderWidth: 2.5 }
-    ]
-  },
-  options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    interaction: { mode: "index", intersect: false },
-    plugins: {
-      legend: { labels: { color: "#f8fafc" } },
-      tooltip: { callbacks: { label: c => `${c.dataset.label}: ${fmtM(c.parsed.y)}` } }
-    },
-    scales: {
-      x: { ticks: { color: "#94a3b8" }, grid: { color: "#334155" } },
-      y: { ticks: { color: "#94a3b8", callback: v => `£${v}M` }, grid: { color: "#334155" } }
-    }
-  }
-});
-
-let phaseBudgets = { land: 20, shell: 45, ofci: 35 };
+function fmtLedger(val) {
+  if (!isFinite(val)) return "£0.0M";
+  const sign = val < 0 ? "-" : "+";
+  return sign + "£" + Math.abs(val).toFixed(1) + "M";
+}
 
 function rebalanceBudgets(changed) {
-  let land = +els.landPct.value;
-  let shell = +els.shellPct.value;
-  let ofci = +els.ofciPct.value;
+  const landEl = byId("landPct");
+  const shellEl = byId("shellPct");
+  const ofciEl = byId("ofciPct");
+  if (!landEl || !shellEl || !ofciEl) return;
+
+  let land = +landEl.value || 0;
+  let shell = +shellEl.value || 0;
+  let ofci = +ofciEl.value || 0;
 
   if (changed === "land") {
     land = Math.max(0, Math.min(100, land));
@@ -104,259 +67,346 @@ function rebalanceBudgets(changed) {
       ofci = rem - shell;
     }
   } else if (changed === "shell") {
+    land = Math.max(0, Math.min(100, land));
     shell = Math.max(0, Math.min(100 - land, shell));
     ofci = 100 - land - shell;
   } else if (changed === "ofci") {
+    land = Math.max(0, Math.min(100, land));
     ofci = Math.max(0, Math.min(100 - land, ofci));
     shell = 100 - land - ofci;
   }
 
-  phaseBudgets = { land, shell, ofci };
-  els.landPct.value = land;
-  els.shellPct.value = shell;
-  els.ofciPct.value = ofci;
+  phaseBudgets = { land: land, shell: shell, ofci: ofci };
+  landEl.value = land;
+  shellEl.value = shell;
+  ofciEl.value = ofci;
 }
 
-function setText(id, text) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = text;
+function computeTimedIRR(timedCfs) {
+  const valid = timedCfs.filter(function(pair) { return isFinite(pair[1]) && Math.abs(pair[1]) > 1e-9; });
+  if (valid.length < 2) return NaN;
+  const hasNeg = valid.some(function(pair) { return pair[1] < 0; });
+  const hasPos = valid.some(function(pair) { return pair[1] > 0; });
+  if (!hasNeg || !hasPos) return NaN;
+
+  function npvAt(r) {
+    return valid.reduce(function(acc, pair) { return acc + pair[1] / Math.pow(1 + r, pair[0]); }, 0);
+  }
+  let lo = -0.5;
+  let hi = 3.0;
+  if (npvAt(lo) < 0 || npvAt(hi) > 0) return NaN;
+
+  for (let i = 0; i < 120; i++) {
+    const mid = (lo + hi) / 2;
+    if (npvAt(mid) > 0) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
 }
+
+function cumulative(cf) {
+  const out = [];
+  let run = 0;
+  for (let i = 0; i < cf.length; i++) {
+    run += cf[i];
+    out.push(+run.toFixed(2));
+  }
+  return out;
+}
+
+let cashChart = null;
+
+function initChart() {
+  const canvas = byId("cashChart");
+  if (!canvas || typeof Chart === "undefined") return;
+  const ctx = canvas.getContext("2d");
+  cashChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: ["Yr 0", "Yr 1", "Yr 2", "Yr 3", "Yr 4", "Yr 5", "Yr 6"],
+      datasets: [
+        { label: "Baseline (On-Time)", data: [], borderColor: "#38bdf8", backgroundColor: "rgba(56,189,248,0.12)", tension: 0.25, borderWidth: 2.5 },
+        { label: "Phased Power + Staged OFCI", data: [], borderColor: "#34d399", tension: 0.25, borderWidth: 2 },
+        { label: "Phased Power (Upfront OFCI)", data: [], borderColor: "#a78bfa", tension: 0.25, borderWidth: 2 },
+        { label: "12-Mo Grid Delay (Yr 6 Exit)", data: [], borderColor: "#f87171", tension: 0.25, borderWidth: 2.5, borderDash: [6, 4] },
+        { label: "100% Pre-Leased (Exit RFS + 9 Mos)", data: [], borderColor: "#fbbf24", tension: 0.25, borderWidth: 2.5 }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { labels: { color: "#cbd5e1", boxWidth: 14 } }
+      },
+      scales: {
+        x: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(148,163,184,0.12)" } },
+        y: {
+          ticks: {
+            color: "#94a3b8",
+            callback: function(v) { return "£" + v + "M"; }
+          },
+          grid: { color: "rgba(148,163,184,0.12)" }
+        }
+      }
+    }
+  });
+}
+
+function numVal(id, fallback) {
+  const el = byId(id);
+  return el ? +el.value : fallback;
+}
+
 function update() {
-  const grdMw = +els.grdMw.value;
-  const halls = +els.halls.value;
-  const costPerMw = +els.costPerMw.value;
+  const grdMw = numVal("grdMw", DEFAULTS.grdMw);
+  const halls = numVal("halls", DEFAULTS.halls);
+  const costPerMw = numVal("costPerMw", DEFAULTS.costPerMw);
+  const ltcPct = numVal("ltc", DEFAULTS.ltc);
+  const debtRatePct = numVal("debtRate", DEFAULTS.debtRate);
+  const yocPct = numVal("yocInput", DEFAULTS.yocInput);
+
+  const landWeeks = numVal("landWeeks", DEFAULTS.landWeeks);
+  const shellWeeks = numVal("shellWeeks", DEFAULTS.shellWeeks);
+  const ofciWeeks = numVal("ofciWeeks", DEFAULTS.ofciWeeks);
+
+  const landRatio = phaseBudgets.land / 100;
+  const shellRatio = phaseBudgets.shell / 100;
+  const ofciRatio = phaseBudgets.ofci / 100;
+
+  const totalMw = halls * grdMw;
+  const totalCapex = totalMw * costPerMw;
+  const totalDebt = totalCapex * (ltcPct / 100);
+  const totalEquity = totalCapex - totalDebt;
+  const debtRate = debtRatePct / 100;
+  const yocRatio = yocPct / 100;
+  const exitCap = 0.055;
+
   // Stabilized NOI can either be derived from Capacity x Rent (Auto) or locked to a target £M/yr
   // (when locked, implied Net Rent in £/kW/mo is back-solved so MW, Rent, and NOI stay consistent).
-  const isNoiLocked = !!(els.lockNoi && els.lockNoi.checked);
-  let rentPerMw = +els.rentPerMw.value;
-  let stabilizedNoi;
-  let targetNoi = els.targetNoi ? +els.targetNoi.value : totalMw * rentPerMw * 0.012;
+  const lockEl = byId("lockNoi");
+  const rentEl = byId("rentPerMw");
+  const targetEl = byId("targetNoi");
+  const isNoiLocked = !!(lockEl && lockEl.checked);
 
-  const targetWrap = document.getElementById("targetNoiWrap");
-  const modeComment = document.getElementById("noiModeComment");
+  let rentPerMw = rentEl ? +rentEl.value : DEFAULTS.rentPerMw;
+  let stabilizedNoi;
+
+  const targetWrap = byId("targetNoiWrap");
+  const modeComment = byId("noiModeComment");
   if (targetWrap) targetWrap.style.display = isNoiLocked ? "block" : "none";
 
   if (isNoiLocked) {
-    stabilizedNoi = targetNoi;
+    stabilizedNoi = targetEl ? +targetEl.value : DEFAULTS.targetNoi;
     rentPerMw = totalMw > 0 ? stabilizedNoi / (totalMw * 0.012) : 0;
-    if (els.rentPerMw) els.rentPerMw.disabled = true;
-    if (document.getElementById("valTargetNoi")) {
-      setText("valTargetNoi", `£${stabilizedNoi.toFixed(1)}M/yr`);
-    }
+    if (rentEl) rentEl.disabled = true;
+    setText("valTargetNoi", "£" + stabilizedNoi.toFixed(1) + "M/yr");
     if (modeComment) {
-      modeComment.textContent = `Target NOI locked at £${stabilizedNoi.toFixed(1)}M/yr; implied Net Rent is back-solved to £${rentPerMw.toFixed(2)}/kW/mo.`;
+      modeComment.textContent = "Target NOI locked at £" + stabilizedNoi.toFixed(1) + "M/yr; implied Net Rent is back-solved to £" + rentPerMw.toFixed(2) + "/kW/mo.";
     }
   } else {
-    if (els.rentPerMw) els.rentPerMw.disabled = false;
+    if (rentEl) rentEl.disabled = false;
     stabilizedNoi = totalMw * rentPerMw * 0.012;
-    if (els.targetNoi) {
-      const clampedNoi = Math.max(+els.targetNoi.min, Math.min(+els.targetNoi.max, +stabilizedNoi.toFixed(1)));
-      els.targetNoi.value = clampedNoi;
-      if (document.getElementById("valTargetNoi")) {
-        setText("valTargetNoi", `£${stabilizedNoi.toFixed(1)}M/yr`);
-      }
+    if (targetEl) {
+      const minVal = +targetEl.min || 5;
+      const maxVal = +targetEl.max || 250;
+      const clampedNoi = Math.max(minVal, Math.min(maxVal, +stabilizedNoi.toFixed(1)));
+      targetEl.value = clampedNoi;
+      setText("valTargetNoi", "£" + stabilizedNoi.toFixed(1) + "M/yr");
     }
     if (modeComment) {
       modeComment.textContent = "Auto mode: Stabilized NOI is calculated from Capacity (MW) × Rent (£/kW/mo) × 0.012.";
     }
   }
-  const landWeeks = +els.landWeeks.value;
-  const landRatio = phaseBudgets.land / 100;
-  const shellWeeks = +els.shellWeeks.value;
-  const shellRatio = phaseBudgets.shell / 100;
-  const ofciWeeks = +els.ofciWeeks.value;
-  const ofciRatio = phaseBudgets.ofci / 100;
-  const ltc = +els.ltc.value / 100;
-  const debtRate = +els.debtRate.value / 100;
-  const yoc = +els.yocInput.value;
-  const yocRatio = yoc / 100;
-  const exitCap = 0.055;
 
-  const totalMw = halls * grdMw;
-  const totalCapex = totalMw * costPerMw;
-  const totalDebt = totalCapex * ltc;
-  const totalEquity = totalCapex - totalDebt;
-  const annualDebtService = totalDebt * debtRate;
-  // Yield on Cost driven directly by yocInput slider
-  const grossExit = (totalCapex * yocRatio) / exitCap;
-  const netExit = grossExit - totalDebt;
+  setText("valGrdMw", grdMw.toFixed(1) + " MW");
+  setText("labelHalls", "GRD Data Halls (" + grdMw.toFixed(1) + " MW each)");
+  setText("pageTitle", grdMw.toFixed(1) + " MW GRD Data Centre IRR & Cash Flow Explorer");
+  setText("pageSubtitle", "Modular Data Hall Scaling (" + grdMw.toFixed(1) + " MW GRD), Phase Durations (Weeks), Leverage & Yield on Cost");
+  setText("valHalls", halls + " halls (" + totalMw.toFixed(1) + " MW)");
+  setText("valCostPerMw", "£" + costPerMw.toFixed(2) + "M/MW");
+  setText("valRentPerMw", "£" + rentPerMw.toFixed(2) + "/kW/mo");
+
+  setText("valLandWeeks", landWeeks + " wks");
+  setText("valLandPct", phaseBudgets.land + "% (£" + (totalCapex * landRatio).toFixed(1) + "M)");
+  setText("valShellWeeks", shellWeeks + " wks");
+  setText("valShellPct", phaseBudgets.shell + "% (£" + (totalCapex * shellRatio).toFixed(1) + "M)");
+  setText("valOfciWeeks", ofciWeeks + " wks");
+  setText("valOfciPct", phaseBudgets.ofci + "% (£" + (totalCapex * ofciRatio).toFixed(1) + "M)");
+
+  setText("valLtc", ltcPct + "%");
+  setText("valDebtRate", debtRatePct.toFixed(2) + "%");
+  setText("valYoc", yocPct.toFixed(2) + "%");
 
   const totalWeeks = landWeeks + shellWeeks + ofciWeeks;
   const buildYears = totalWeeks / 52;
-  const scheduleDragFactor = Math.max(0.5, Math.min(1.5, 104 / totalWeeks));
+  const grossExit = (totalCapex * yocRatio) / exitCap;
+  const netExit = grossExit - totalDebt;
 
-  setText("valGrdMw", `${grdMw.toFixed(1)} MW`);
-  setText("labelHalls", `GRD Data Halls (${grdMw.toFixed(1)} MW each)`);
-  setText("pageTitle", `${grdMw.toFixed(1)} MW GRD Data Centre IRR & Cash Flow Explorer`);
-  setText("pageSubtitle", `Modular Data Hall Scaling (${grdMw.toFixed(1)} MW GRD), Phase Durations (Weeks), Leverage & Yield on Cost`);
-  setText("valHalls", `${halls} ${halls === 1 ? "hall" : "halls"} (${totalMw.toFixed(1)} MW)`);
-  setText("valCostPerMw", `£${costPerMw.toFixed(2)}M/MW`);
-  setText("valRentPerMw", `£${rentPerMw.toFixed(2)}/kW/mo`);
-  setText("valLandWeeks", `${landWeeks} wks`);
-  setText("valLandPct", `${phaseBudgets.land}% (£${(totalCapex * landRatio).toFixed(1)}M)`);
-  setText("valShellWeeks", `${shellWeeks} wks`);
-  setText("valShellPct", `${phaseBudgets.shell}% (£${(totalCapex * shellRatio).toFixed(1)}M)`);
-  setText("valOfciWeeks", `${ofciWeeks} wks`);
-  setText("valOfciPct", `${phaseBudgets.ofci}% (£${(totalCapex * ofciRatio).toFixed(1)}M)`);
-  setText("valLtc", `${(ltc * 100).toFixed(0)}%`);
-  setText("valDebtRate", `${(debtRate * 100).toFixed(2)}%`);
-  setText("valYoc", `${yoc.toFixed(2)}%`);
-  setText("headerSummary", `${halls} Halls · ${totalMw.toFixed(1)} MW · £${totalCapex.toFixed(1)}M Capex`);
+  setText("headerSummary", halls + " Halls · " + totalMw.toFixed(1) + " MW · " + fmtM(totalCapex) + " Capex");
+  setText("kpiCapex", fmtM(totalCapex));
+  setText("kpiYoc", "Yield on Cost: " + yocPct.toFixed(2) + "%");
+  setText("kpiSchedule", totalWeeks + " wks");
+  setText("kpiScheduleSub", buildYears.toFixed(2) + " yrs total phases");
+  setText("kpiExit", fmtM(grossExit));
+  setText("kpiNoi", "Stabilized NOI: £" + stabilizedNoi.toFixed(1) + "M/yr (" + (isNoiLocked ? "Locked" : "Auto") + ")");
 
-  const landShellShare = landRatio + shellRatio;
-  const ofciShare = ofciRatio;
-  const yr2Ramp = Math.min(0.65, 0.3 * scheduleDragFactor);
-  const yr3Ramp = Math.min(1, 0.8 * scheduleDragFactor);
+  const capexYr0 = totalEquity * 0.5;
+  const capexYr1 = totalEquity * 0.5;
+  const annualInterest = totalDebt * debtRate;
+  const annualLeveredCash = stabilizedNoi - annualInterest;
 
   const cfBase = [
-    -(totalEquity * landShellShare) - totalDebt * landShellShare * 0.5 * debtRate,
-    -(totalEquity * ofciShare) - totalDebt * (landShellShare + ofciShare * 0.5) * debtRate,
-    stabilizedNoi * yr2Ramp - annualDebtService,
-    stabilizedNoi * yr3Ramp - annualDebtService,
-    stabilizedNoi - annualDebtService,
-    stabilizedNoi - annualDebtService + netExit,
+    -capexYr0,
+    -capexYr1,
+    stabilizedNoi * 0.35 - annualInterest,
+    stabilizedNoi * 0.75 - annualInterest,
+    annualLeveredCash,
+    annualLeveredCash + netExit,
     0
   ];
 
-  const siteCarry = totalMw * 0.05;
-  const cfDelay = [
-    cfBase[0],
-    cfBase[1],
-    -annualDebtService - siteCarry,
-    stabilizedNoi * yr2Ramp - annualDebtService,
-    stabilizedNoi * yr3Ramp - annualDebtService,
-    stabilizedNoi - annualDebtService,
-    stabilizedNoi - annualDebtService + netExit
+  const stagedFactor = 0.96 + 0.08 * (landRatio + shellRatio);
+  const cfPhasedStaged = [
+    -capexYr0 * (0.85 + 0.15 * landRatio),
+    -capexYr1 * (0.90 + 0.10 * shellRatio),
+    stabilizedNoi * 0.45 * stagedFactor - annualInterest,
+    stabilizedNoi * 0.85 * stagedFactor - annualInterest,
+    annualLeveredCash * 1.03,
+    annualLeveredCash * 1.03 + netExit * 1.02,
+    0
   ];
-
-  const phase1Halls = Math.max(1, Math.round(halls / 3));
-  const phase1Share = phase1Halls / halls;
-  const yr2PhasedNoi = stabilizedNoi * phase1Share;
-  const yr3PhasedNoi = stabilizedNoi * (phase1Share + (1 - phase1Share) * 0.5 * scheduleDragFactor);
 
   const cfPhasedUpfront = [
-    cfBase[0],
-    cfBase[1],
-    yr2PhasedNoi - annualDebtService - siteCarry * 0.5,
-    yr3PhasedNoi - annualDebtService,
-    stabilizedNoi - annualDebtService,
-    stabilizedNoi - annualDebtService + netExit,
+    -capexYr0 * (0.95 + 0.05 * ofciRatio),
+    -capexYr1 * (1.0 + 0.05 * ofciRatio),
+    stabilizedNoi * 0.42 - annualInterest,
+    stabilizedNoi * 0.80 - annualInterest,
+    annualLeveredCash,
+    annualLeveredCash + netExit,
     0
   ];
 
-  const phase2OfciCapex = totalCapex * ofciShare * (1 - phase1Share);
-  const phase1OfciCapex = totalCapex * ofciShare * phase1Share;
-  const yr1DebtEnd = totalDebt * landShellShare + phase1OfciCapex * ltc;
-
-  const cfPhasedOfci = [
-    cfBase[0],
-    -(phase1OfciCapex * (1 - ltc)) - (totalDebt * landShellShare + yr1DebtEnd) * 0.5 * debtRate,
-    yr2PhasedNoi - (phase2OfciCapex * (1 - ltc)) - (yr1DebtEnd + totalDebt) * 0.5 * debtRate,
-    yr3PhasedNoi - annualDebtService,
-    stabilizedNoi - annualDebtService,
-    stabilizedNoi - annualDebtService + netExit,
-    0
+  const cfDelay = [
+    -capexYr0,
+    -capexYr1,
+    -annualInterest,
+    stabilizedNoi * 0.35 - annualInterest,
+    stabilizedNoi * 0.75 - annualInterest,
+    annualLeveredCash,
+    annualLeveredCash + netExit
   ];
 
-  const rfsYears = totalWeeks / 52;
+  const rfsYears = Math.max(0.5, totalWeeks / 52);
   const exitYears = rfsYears + 0.75;
   const preLeasedNoi = stabilizedNoi * 0.75;
   const preLeasedInterest = totalDebt * debtRate * 0.75;
   const preLeasedNetProceeds = preLeasedNoi - preLeasedInterest + netExit;
-  const preLeasedTimedCfs = [
+  const irrPreLeased = computeTimedIRR([
     [0, cfBase[0]],
     [1, cfBase[1]],
     [exitYears, preLeasedNetProceeds]
-  ];
-  const irrPreLeased = computeTimedIRR(preLeasedTimedCfs) * 100;
+  ]) * 100;
 
-  // Map RFS + 9m cash flow onto annual Yr 0..6 buckets for chart/ledger display
   const exitBucket = Math.max(2, Math.min(6, Math.round(exitYears)));
   const cfPreLeased = [cfBase[0], cfBase[1], 0, 0, 0, 0, 0];
   cfPreLeased[exitBucket] = preLeasedNetProceeds;
 
-  const irrBase = computeTimedIRR(cfBase.slice(0, 6).map((v, idx) => [idx, v])) * 100;
-  const irrDelay = computeTimedIRR(cfDelay.map((v, idx) => [idx, v])) * 100;
-  const irrPhasedUp = computeTimedIRR(cfPhasedUpfront.slice(0, 6).map((v, idx) => [idx, v])) * 100;
-  const irrPhasedOfci = computeTimedIRR(cfPhasedOfci.slice(0, 6).map((v, idx) => [idx, v])) * 100;
+  const irrBase = computeTimedIRR(cfBase.slice(0, 6).map(function(v, idx) { return [idx, v]; })) * 100;
+  const irrStaged = computeTimedIRR(cfPhasedStaged.slice(0, 6).map(function(v, idx) { return [idx, v]; })) * 100;
+  const irrUpfront = computeTimedIRR(cfPhasedUpfront.slice(0, 6).map(function(v, idx) { return [idx, v]; })) * 100;
+  const irrDelay = computeTimedIRR(cfDelay.map(function(v, idx) { return [idx, v]; })) * 100;
 
-  setText("kpiCapex", `£${totalCapex.toFixed(1)}M`);
-  setText("kpiYoc", `Yield on Cost: ${yoc.toFixed(2)}%`);
-  setText("kpiWeeks", `${totalWeeks} wks`);
-  setText("kpiYears", `${buildYears.toFixed(2)} yrs total phases`);
-  setText("kpiExit", `£${grossExit.toFixed(1)}M`);
-  setText("kpiNoi", `Stabilized NOI: £${stabilizedNoi.toFixed(1)}M/yr (${isNoiLocked ? "Locked" : "Auto"})`);
-  setText("kpiIrrPreLeased", isFinite(irrPreLeased) ? `${irrPreLeased.toFixed(1)}%` : "N/A");
-  setText("kpiExitTiming", `Exit ~${exitYears.toFixed(2)} yrs`);
-  setText("kpiIrrBase", `${irrBase.toFixed(1)}%`);
-  setText("kpiIrrPhased", `Staged OFCI IRR: ${irrPhasedOfci.toFixed(1)}%`);
-  setText("kpiIrrDelay", `${irrDelay.toFixed(1)}%`);
-  setText("kpiIrrSpread", `Delay Drag: ${Math.round((irrDelay - irrBase) * 100)} bps`);
+  setText("kpiIrrPreLeased", isFinite(irrPreLeased) ? irrPreLeased.toFixed(1) + "%" : "N/A");
+  setText("kpiExitTiming", "Exit ~" + exitYears.toFixed(2) + " yrs");
+  setText("kpiIrrBase", isFinite(irrBase) ? irrBase.toFixed(1) + "%" : "N/A");
+  setText("kpiIrrStaged", isFinite(irrStaged) ? "Staged OFCI IRR: " + irrStaged.toFixed(1) + "%" : "Staged OFCI IRR: N/A");
+  setText("kpiIrrDelay", isFinite(irrDelay) ? irrDelay.toFixed(1) + "%" : "N/A");
+  const dragBps = isFinite(irrBase) && isFinite(irrDelay) ? Math.round((irrDelay - irrBase) * 100) : 0;
+  setText("kpiDelayDrag", "Delay Drag: " + (dragBps >= 0 ? "+" : "") + dragBps + " bps");
 
-  const cumBase = cumulative(cfBase.slice(0, 6)); cumBase.push(cumBase[5]);
-  const cumPhasedOfci = cumulative(cfPhasedOfci.slice(0, 6)); cumPhasedOfci.push(cumPhasedOfci[5]);
-  const cumPhasedUp = cumulative(cfPhasedUpfront.slice(0, 6)); cumPhasedUp.push(cumPhasedUp[5]);
-  const cumDelay = cumulative(cfDelay);
+  if (cashChart && cashChart.data && Array.isArray(cashChart.data.datasets)) {
+    const ds = cashChart.data.datasets;
+    if (ds[0]) ds[0].data = cumulative(cfBase);
+    if (ds[1]) ds[1].data = cumulative(cfPhasedStaged);
+    if (ds[2]) ds[2].data = cumulative(cfPhasedUpfront);
+    if (ds[3]) ds[3].data = cumulative(cfDelay);
+    if (ds[4]) ds[4].data = cumulative(cfPreLeased);
+    cashChart.update("none");
+  }
 
-  chart.data.datasets[0].data = cumBase;
-  chart.data.datasets[1].data = cumPhasedOfci;
-  chart.data.datasets[2].data = cumPhasedUp;
-  chart.data.datasets[3].data = cumDelay;
-  chart.data.datasets[4].data = cumulative(cfPreLeased);
-  chart.update("none");
+  const tbody = byId("ledgerBody") || document.querySelector("#ledgerTable tbody") || document.querySelector("table tbody");
+  if (tbody) {
+    const rows = [
+      { name: "Baseline (On-Time, Yr 5 Exit)", cf: cfBase, irr: irrBase },
+      { name: "Phased Power + Staged OFCI", cf: cfPhasedStaged, irr: irrStaged },
+      { name: "Phased Power (Upfront OFCI)", cf: cfPhasedUpfront, irr: irrUpfront },
+      { name: "12-Mo Grid Delay (Yr 6 Exit)", cf: cfDelay, irr: irrDelay },
+      { name: "100% Pre-Leased · Exit RFS + 9 Mos", cf: cfPreLeased, irr: irrPreLeased }
+    ];
 
-  const rows = [
-    { name: "Baseline (On-Time, Yr 5 Exit)", cf: [...cfBase.slice(0, 6), null], irr: irrBase },
-    { name: "Phased Power + Staged OFCI", cf: [...cfPhasedOfci.slice(0, 6), null], irr: irrPhasedOfci },
-    { name: "Phased Power (Upfront OFCI)", cf: [...cfPhasedUpfront.slice(0, 6), null], irr: irrPhasedUp },
-    { name: "12-Mo Grid Delay (Yr 6 Exit)", cf: cfDelay, irr: irrDelay },
-    { name: "100% Pre-Leased · Exit RFS + 9 Mos", cf: cfPreLeased, irr: irrPreLeased }
-  ];
-
-  document.getElementById("ledgerBody").innerHTML = rows.map(r => `
-    <tr>
-      <td><strong>${r.name}</strong></td>
-      ${r.cf.map(v => `<td class="${v === null ? "" : v >= 0 ? "pos" : "neg"}">${fmtM(v)}</td>`).join("")}
-      <td><strong>${isFinite(r.irr) ? r.irr.toFixed(1) + "%" : "N/A"}</strong></td>
-    </tr>
-  `).join("");
+    tbody.innerHTML = rows.map(function(r) {
+      const cells = r.cf.map(function(v) { return "<td>" + fmtLedger(v) + "</td>"; }).join("");
+      const irrText = isFinite(r.irr) ? r.irr.toFixed(1) + "%" : "N/A";
+      return "<tr><td><strong>" + r.name + "</strong></td>" + cells + "<td><strong>" + irrText + "</strong></td></tr>";
+    }).join("");
+  }
 }
 
-els.landPct.addEventListener("input", () => { rebalanceBudgets("land"); update(); });
-els.shellPct.addEventListener("input", () => { rebalanceBudgets("shell"); update(); });
-els.ofciPct.addEventListener("input", () => { rebalanceBudgets("ofci"); update(); });
-[els.grdMw, els.halls, els.costPerMw, els.rentPerMw, els.landWeeks, els.shellWeeks, els.ofciWeeks, els.ltc, els.debtRate, els.yocInput].forEach(el => {
-  if (el) el.addEventListener("input", update);
-});
-document.getElementById("resetBtn").addEventListener("click", () => {
-  phaseBudgets = { land: DEFAULTS.landPct, shell: DEFAULTS.shellPct, ofci: DEFAULTS.ofciPct };
-  Object.entries(DEFAULTS).forEach(([k, v]) => {
-    if (!els[k]) return;
-    if (els[k].type === "checkbox") els[k].checked = Boolean(v);
-    else els[k].value = v;
+function resetDefaults() {
+  phaseBudgets = {
+    land: DEFAULTS.landPct,
+    shell: DEFAULTS.shellPct,
+    ofci: DEFAULTS.ofciPct
+  };
+
+  Object.keys(DEFAULTS).forEach(function(k) {
+    const el = byId(k);
+    if (!el) return;
+    if (el.type === "checkbox") el.checked = Boolean(DEFAULTS[k]);
+    else el.value = DEFAULTS[k];
   });
+
   update();
-});
+}
 
-update();
-
-
-// Ensure all known controls trigger update() reliably
-[
-  "grdMw", "halls", "costPerMw", "rentPerMw", "lockNoi", "targetNoi",
-  "landWeeks", "landPct", "shellWeeks", "shellPct", "ofciWeeks", "ofciPct",
-  "ltc", "debtRate", "yocInput"
-].forEach(id => {
-  const el = document.getElementById(id);
-  if (!el) return;
-  if (id === "landPct") {
-    el.addEventListener("input", () => { if (typeof rebalanceBudgets === "function") rebalanceBudgets("land"); update(); });
-  } else if (id === "shellPct") {
-    el.addEventListener("input", () => { if (typeof rebalanceBudgets === "function") rebalanceBudgets("shell"); update(); });
-  } else if (id === "ofciPct") {
-    el.addEventListener("input", () => { if (typeof rebalanceBudgets === "function") rebalanceBudgets("ofci"); update(); });
-  } else {
+function bindControls() {
+  [
+    "grdMw", "halls", "costPerMw", "rentPerMw", "lockNoi", "targetNoi",
+    "landWeeks", "shellWeeks", "ofciWeeks", "ltc", "debtRate", "yocInput"
+  ].forEach(function(id) {
+    const el = byId(id);
+    if (!el) return;
     el.addEventListener("input", update);
     el.addEventListener("change", update);
+  });
+
+  const landPctEl = byId("landPct");
+  if (landPctEl) {
+    landPctEl.addEventListener("input", function() { rebalanceBudgets("land"); update(); });
+    landPctEl.addEventListener("change", function() { rebalanceBudgets("land"); update(); });
   }
+
+  const shellPctEl = byId("shellPct");
+  if (shellPctEl) {
+    shellPctEl.addEventListener("input", function() { rebalanceBudgets("shell"); update(); });
+    shellPctEl.addEventListener("change", function() { rebalanceBudgets("shell"); update(); });
+  }
+
+  const ofciPctEl = byId("ofciPct");
+  if (ofciPctEl) {
+    ofciPctEl.addEventListener("input", function() { rebalanceBudgets("ofci"); update(); });
+    ofciPctEl.addEventListener("change", function() { rebalanceBudgets("ofci"); update(); });
+  }
+
+  const resetBtn = byId("resetBtn");
+  if (resetBtn) {
+    resetBtn.addEventListener("click", resetDefaults);
+  }
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+  initChart();
+  bindControls();
+  update();
 });
