@@ -712,6 +712,13 @@ function update() {
       for (let m = 0; m <= 72; m++) {
         const tPrev = Math.max(0, (m - 1) / 12);
         const tCurr = m / 12;
+
+        // End the trajectory once sold (no post-exit points)
+        if (exitYr !== null && tPrev > exitYr + 1e-6) {
+          out.push(null);
+          continue;
+        }
+
         let stepCf = 0;
 
         if (m > 0) {
@@ -729,28 +736,32 @@ function update() {
           const drawnDebt = cumulativeDrawnDebtAt(midYrEff);
           stepCf -= (drawnDebt * debtRate) / 12;
 
-          // Monthly operating NOI once past build/delay
-          if (cfg.isPreLeased) {
-            const rfsStartYr = Math.max(0, tOfciYr - (ofciWeeks / 52));
-            if (tCurr > rfsStartYr && tCurr <= exitYr) {
-              const ofciProgress = ofciWeeks > 0 ? Math.min(1, Math.max(0, (tCurr - rfsStartYr) / (ofciWeeks / 52))) : 1;
-              const hallFactor = tCurr <= tOfciYr ? (0.25 + 0.75 * ofciProgress) : 1.0;
-              stepCf += (stabilizedNoi * hallFactor) / 12;
-            }
-          } else {
-            const effOpYr = tCurr - delayShift;
-            if (effOpYr > 1.5 && tCurr <= exitYr) {
-              let ramp = 0;
-              if (effOpYr <= 2.5) ramp = 0.35;
-              else if (effOpYr <= 3.5) ramp = 0.75;
-              else ramp = 1.0;
-              stepCf += (stabilizedNoi * ramp * noiMult) / 12;
+          // Monthly operating NOI once past build/delay up to sale
+          const activeToYr = exitYr !== null ? Math.min(tCurr, exitYr) : tCurr;
+          if (activeToYr > tPrev) {
+            const activeFrac = activeToYr - tPrev;
+            if (cfg.isPreLeased) {
+              const rfsStartYr = Math.max(0, tOfciYr - (ofciWeeks / 52));
+              if (activeToYr > rfsStartYr) {
+                const ofciProgress = ofciWeeks > 0 ? Math.min(1, Math.max(0, (activeToYr - rfsStartYr) / (ofciWeeks / 52))) : 1;
+                const hallFactor = activeToYr <= tOfciYr ? (0.25 + 0.75 * ofciProgress) : 1.0;
+                stepCf += stabilizedNoi * hallFactor * activeFrac;
+              }
+            } else {
+              const effOpYr = activeToYr - delayShift;
+              if (effOpYr > 1.5) {
+                let ramp = 0;
+                if (effOpYr <= 2.5) ramp = 0.35;
+                else if (effOpYr <= 3.5) ramp = 0.75;
+                else ramp = 1.0;
+                stepCf += stabilizedNoi * ramp * noiMult * activeFrac;
+              }
             }
           }
         }
 
-        // Terminal net exit proceeds when crossing exitYr
-        if (exitYr !== null && tPrev < exitYr && tCurr >= exitYr) {
+        // Terminal net exit proceeds when reaching/crossing exitYr
+        if (exitYr !== null && tCurr >= exitYr - 1e-6 && tPrev <= exitYr + 1e-6) {
           stepCf += netExit * exitMult;
         }
 
