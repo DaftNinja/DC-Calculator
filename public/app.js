@@ -23,21 +23,18 @@ const els = {
   exitCap: document.getElementById("exitCap")
 };
 
-function computeIRR(cf) {
-  let r = 0.15;
-  for (let i = 0; i < 100; i++) {
-    let n = 0, d = 0;
-    for (let t = 0; t < cf.length; t++) {
-      const p = Math.pow(1 + r, t);
-      n += cf[t] / p;
-      if (t > 0) d -= (t * cf[t]) / Math.pow(1 + r, t + 1);
-    }
-    if (Math.abs(n) < 1e-6) return r;
-    if (Math.abs(d) < 1e-9) break;
-    r -= n / d;
-    if (r <= -0.95) r = -0.5;
+function computeTimedIRR(timedCfs) {
+  const valid = timedCfs.filter(([, amt]) => Math.abs(amt) > 1e-9);
+  if (valid.length < 2) return NaN;
+  let lo = -0.5, hi = 3.0;
+  const npvAt = r => valid.reduce((acc, [t, amt]) => acc + amt / Math.pow(1 + r, t), 0);
+  if (npvAt(lo) < 0 || npvAt(hi) > 0) return NaN;
+  for (let i = 0; i < 120; i++) {
+    const mid = (lo + hi) / 2;
+    if (npvAt(mid) > 0) lo = mid;
+    else hi = mid;
   }
-  return isFinite(r) ? r : NaN;
+  return (lo + hi) / 2;
 }
 
 function cumulative(a) {
@@ -58,7 +55,8 @@ const chart = new Chart(document.getElementById("cfChart").getContext("2d"), {
       { label: "Baseline (On-Time)", data: [], borderColor: "#38bdf8", tension: 0.25, borderWidth: 2.5 },
       { label: "Phased Power + Staged OFCI", data: [], borderColor: "#34d399", tension: 0.25, borderWidth: 2.5 },
       { label: "Phased Power (Upfront OFCI)", data: [], borderColor: "#a78bfa", tension: 0.25, borderWidth: 2 },
-      { label: "12-Mo Grid Delay (Yr 6 Exit)", data: [], borderColor: "#f87171", tension: 0.25, borderWidth: 2.5, borderDash: [6, 4] }
+      { label: "12-Mo Grid Delay (Yr 6 Exit)", data: [], borderColor: "#f87171", tension: 0.25, borderWidth: 2.5, borderDash: [6, 4] },
+      { label: "100% Pre-Leased (Exit RFS + 9 Mos)", data: [], borderColor: "#fbbf24", tension: 0.25, borderWidth: 2.5 }
     ]
   },
   options: {
@@ -167,10 +165,27 @@ function update() {
     0
   ];
 
-  const irrBase = computeIRR(cfBase.slice(0, 6)) * 100;
-  const irrDelay = computeIRR(cfDelay) * 100;
-  const irrPhasedUp = computeIRR(cfPhasedUpfront.slice(0, 6)) * 100;
-  const irrPhasedOfci = computeIRR(cfPhasedOfci.slice(0, 6)) * 100;
+  const rfsYears = totalWeeks / 52;
+  const exitYears = rfsYears + 0.75;
+  const preLeasedNoi = stabilizedNoi * 0.75;
+  const preLeasedInterest = totalDebt * debtRate * 0.75;
+  const preLeasedNetProceeds = preLeasedNoi - preLeasedInterest + netExit;
+  const preLeasedTimedCfs = [
+    [0, cfBase[0]],
+    [1, cfBase[1]],
+    [exitYears, preLeasedNetProceeds]
+  ];
+  const irrPreLeased = computeTimedIRR(preLeasedTimedCfs) * 100;
+
+  // Map RFS + 9m cash flow onto annual Yr 0..6 buckets for chart/ledger display
+  const exitBucket = Math.max(2, Math.min(6, Math.round(exitYears)));
+  const cfPreLeased = [cfBase[0], cfBase[1], 0, 0, 0, 0, 0];
+  cfPreLeased[exitBucket] = preLeasedNetProceeds;
+
+  const irrBase = computeTimedIRR(cfBase.slice(0, 6).map((v, idx) => [idx, v])) * 100;
+  const irrDelay = computeTimedIRR(cfDelay.map((v, idx) => [idx, v])) * 100;
+  const irrPhasedUp = computeTimedIRR(cfPhasedUpfront.slice(0, 6).map((v, idx) => [idx, v])) * 100;
+  const irrPhasedOfci = computeTimedIRR(cfPhasedOfci.slice(0, 6).map((v, idx) => [idx, v])) * 100;
 
   document.getElementById("kpiCapex").textContent = `£${totalCapex.toFixed(1)}M`;
   document.getElementById("kpiYoc").textContent = `Yield on Cost: ${yoc.toFixed(2)}%`;
@@ -178,6 +193,8 @@ function update() {
   document.getElementById("kpiYears").textContent = `${buildYears.toFixed(2)} yrs total phases`;
   document.getElementById("kpiExit").textContent = `£${grossExit.toFixed(1)}M`;
   document.getElementById("kpiNoi").textContent = `Stabilized NOI: £${stabilizedNoi.toFixed(1)}M/yr`;
+  document.getElementById("kpiIrrPreLeased").textContent = isFinite(irrPreLeased) ? `${irrPreLeased.toFixed(1)}%` : "N/A";
+  document.getElementById("kpiExitTiming").textContent = `Exit ~${exitYears.toFixed(2)} yrs`;
   document.getElementById("kpiIrrBase").textContent = `${irrBase.toFixed(1)}%`;
   document.getElementById("kpiIrrPhased").textContent = `Staged OFCI IRR: ${irrPhasedOfci.toFixed(1)}%`;
   document.getElementById("kpiIrrDelay").textContent = `${irrDelay.toFixed(1)}%`;
@@ -192,13 +209,15 @@ function update() {
   chart.data.datasets[1].data = cumPhasedOfci;
   chart.data.datasets[2].data = cumPhasedUp;
   chart.data.datasets[3].data = cumDelay;
+  chart.data.datasets[4].data = cumulative(cfPreLeased);
   chart.update("none");
 
   const rows = [
     { name: "Baseline (On-Time, Yr 5 Exit)", cf: [...cfBase.slice(0, 6), null], irr: irrBase },
     { name: "Phased Power + Staged OFCI", cf: [...cfPhasedOfci.slice(0, 6), null], irr: irrPhasedOfci },
     { name: "Phased Power (Upfront OFCI)", cf: [...cfPhasedUpfront.slice(0, 6), null], irr: irrPhasedUp },
-    { name: "12-Mo Grid Delay (Yr 6 Exit)", cf: cfDelay, irr: irrDelay }
+    { name: "12-Mo Grid Delay (Yr 6 Exit)", cf: cfDelay, irr: irrDelay },
+    { name: "100% Pre-Leased · Exit RFS + 9 Mos", cf: cfPreLeased, irr: irrPreLeased }
   ];
 
   document.getElementById("ledgerBody").innerHTML = rows.map(r => `
