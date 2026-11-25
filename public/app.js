@@ -4,8 +4,11 @@ const DEFAULTS = {
   costPerMw: 14.67,
   rentPerMw: 112.5,
   landWeeks: 26,
+  landPct: 20,
   shellWeeks: 40,
+  shellPct: 45,
   ofciWeeks: 38,
+  ofciPct: 35,
   ltc: 60,
   debtRate: 0,
   yocInput: 9.20
@@ -16,8 +19,11 @@ const els = {
   costPerMw: document.getElementById("costPerMw"),
   rentPerMw: document.getElementById("rentPerMw"),
   landWeeks: document.getElementById("landWeeks"),
+  landPct: document.getElementById("landPct"),
   shellWeeks: document.getElementById("shellWeeks"),
+  shellPct: document.getElementById("shellPct"),
   ofciWeeks: document.getElementById("ofciWeeks"),
+  ofciPct: document.getElementById("ofciPct"),
   ltc: document.getElementById("ltc"),
   debtRate: document.getElementById("debtRate"),
   yocInput: document.getElementById("yocInput")
@@ -74,13 +80,48 @@ const chart = new Chart(document.getElementById("cfChart").getContext("2d"), {
   }
 });
 
+let phaseBudgets = { land: 20, shell: 45, ofci: 35 };
+
+function rebalanceBudgets(changed) {
+  let land = +els.landPct.value;
+  let shell = +els.shellPct.value;
+  let ofci = +els.ofciPct.value;
+
+  if (changed === "land") {
+    land = Math.max(0, Math.min(100, land));
+    const rem = 100 - land;
+    const prevRem = phaseBudgets.shell + phaseBudgets.ofci;
+    if (prevRem <= 0) {
+      shell = Math.round(rem * 0.56);
+      ofci = rem - shell;
+    } else {
+      shell = Math.round((phaseBudgets.shell / prevRem) * rem);
+      ofci = rem - shell;
+    }
+  } else if (changed === "shell") {
+    shell = Math.max(0, Math.min(100 - land, shell));
+    ofci = 100 - land - shell;
+  } else if (changed === "ofci") {
+    ofci = Math.max(0, Math.min(100 - land, ofci));
+    shell = 100 - land - ofci;
+  }
+
+  phaseBudgets = { land, shell, ofci };
+  els.landPct.value = land;
+  els.shellPct.value = shell;
+  els.ofciPct.value = ofci;
+}
+
 function update() {
   const halls = +els.halls.value;
   const costPerMw = +els.costPerMw.value;
   const rentPerMw = +els.rentPerMw.value;
   const landWeeks = +els.landWeeks.value;
+  const landRatio = phaseBudgets.land / 100;
   const shellWeeks = +els.shellWeeks.value;
+  const shellRatio = phaseBudgets.shell / 100;
   const ofciWeeks = +els.ofciWeeks.value;
+  const ofciRatio = phaseBudgets.ofci / 100;
   const ltc = +els.ltc.value / 100;
   const debtRate = +els.debtRate.value / 100;
   const yoc = +els.yocInput.value;
@@ -105,15 +146,18 @@ function update() {
   document.getElementById("valCostPerMw").textContent = `£${costPerMw.toFixed(2)}M/MW`;
   document.getElementById("valRentPerMw").textContent = `£${rentPerMw.toFixed(2)}/kW/mo`;
   document.getElementById("valLandWeeks").textContent = `${landWeeks} wks`;
+  document.getElementById("valLandPct").textContent = `${phaseBudgets.land}%`;
   document.getElementById("valShellWeeks").textContent = `${shellWeeks} wks`;
+  document.getElementById("valShellPct").textContent = `${phaseBudgets.shell}%`;
   document.getElementById("valOfciWeeks").textContent = `${ofciWeeks} wks`;
+  document.getElementById("valOfciPct").textContent = `${phaseBudgets.ofci}%`;
   document.getElementById("valLtc").textContent = `${(ltc * 100).toFixed(0)}%`;
   document.getElementById("valDebtRate").textContent = `${(debtRate * 100).toFixed(2)}%`;
   document.getElementById("valYoc").textContent = `${yoc.toFixed(2)}%`;
   document.getElementById("headerSummary").textContent = `${halls} Halls · ${totalMw.toFixed(1)} MW · £${totalCapex.toFixed(1)}M Capex`;
 
-  const landShellShare = (landWeeks + shellWeeks) / totalWeeks;
-  const ofciShare = ofciWeeks / totalWeeks;
+  const landShellShare = landRatio + shellRatio;
+  const ofciShare = ofciRatio;
   const yr2Ramp = Math.min(0.65, 0.3 * scheduleDragFactor);
   const yr3Ramp = Math.min(1, 0.8 * scheduleDragFactor);
 
@@ -231,9 +275,15 @@ function update() {
   `).join("");
 }
 
-Object.values(els).forEach(el => el.addEventListener("input", update));
+els.landPct.addEventListener("input", () => { rebalanceBudgets("land"); update(); });
+els.shellPct.addEventListener("input", () => { rebalanceBudgets("shell"); update(); });
+els.ofciPct.addEventListener("input", () => { rebalanceBudgets("ofci"); update(); });
+[els.halls, els.costPerMw, els.rentPerMw, els.landWeeks, els.shellWeeks, els.ofciWeeks, els.ltc, els.debtRate, els.yocInput].forEach(el => {
+  if (el) el.addEventListener("input", update);
+});
 document.getElementById("resetBtn").addEventListener("click", () => {
-  Object.entries(DEFAULTS).forEach(([k, v]) => { els[k].value = v; });
+  phaseBudgets = { land: DEFAULTS.landPct, shell: DEFAULTS.shellPct, ofci: DEFAULTS.ofciPct };
+  Object.entries(DEFAULTS).forEach(([k, v]) => { if (els[k]) els[k].value = v; });
   update();
 });
 
