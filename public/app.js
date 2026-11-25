@@ -7,7 +7,7 @@ const DEFAULTS = {
   shellWeeks: 40,
   ofciWeeks: 38,
   ltc: 60,
-  debtRate: 6.25,
+  debtRate: 0,
   exitCap: 5.5
 };
 
