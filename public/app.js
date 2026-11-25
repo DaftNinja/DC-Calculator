@@ -3,6 +3,8 @@ const DEFAULTS = {
   halls: 4,
   costPerMw: 14.67,
   rentPerMw: 112.5,
+  lockNoi: false,
+  targetNoi: 12.0,
   landWeeks: 26,
   landPct: 20,
   shellWeeks: 40,
@@ -19,6 +21,8 @@ const els = {
   halls: document.getElementById("halls"),
   costPerMw: document.getElementById("costPerMw"),
   rentPerMw: document.getElementById("rentPerMw"),
+  lockNoi: document.getElementById("lockNoi"),
+  targetNoi: document.getElementById("targetNoi"),
   landWeeks: document.getElementById("landWeeks"),
   landPct: document.getElementById("landPct"),
   shellWeeks: document.getElementById("shellWeeks"),
@@ -117,7 +121,41 @@ function update() {
   const grdMw = +els.grdMw.value;
   const halls = +els.halls.value;
   const costPerMw = +els.costPerMw.value;
-  const rentPerMw = +els.rentPerMw.value;
+  // Stabilized NOI can either be derived from Capacity x Rent (Auto) or locked to a target £M/yr
+  // (when locked, implied Net Rent in £/kW/mo is back-solved so MW, Rent, and NOI stay consistent).
+  const isNoiLocked = !!(els.lockNoi && els.lockNoi.checked);
+  let rentPerMw = +els.rentPerMw.value;
+  let stabilizedNoi;
+  let targetNoi = els.targetNoi ? +els.targetNoi.value : totalMw * rentPerMw * 0.012;
+
+  const targetWrap = document.getElementById("targetNoiWrap");
+  const modeComment = document.getElementById("noiModeComment");
+  if (targetWrap) targetWrap.style.display = isNoiLocked ? "block" : "none";
+
+  if (isNoiLocked) {
+    stabilizedNoi = targetNoi;
+    rentPerMw = totalMw > 0 ? stabilizedNoi / (totalMw * 0.012) : 0;
+    if (els.rentPerMw) els.rentPerMw.disabled = true;
+    if (document.getElementById("valTargetNoi")) {
+      document.getElementById("valTargetNoi").textContent = `£${stabilizedNoi.toFixed(1)}M/yr`;
+    }
+    if (modeComment) {
+      modeComment.textContent = `Target NOI locked at £${stabilizedNoi.toFixed(1)}M/yr; implied Net Rent is back-solved to £${rentPerMw.toFixed(2)}/kW/mo.`;
+    }
+  } else {
+    if (els.rentPerMw) els.rentPerMw.disabled = false;
+    stabilizedNoi = totalMw * rentPerMw * 0.012;
+    if (els.targetNoi) {
+      const clampedNoi = Math.max(+els.targetNoi.min, Math.min(+els.targetNoi.max, +stabilizedNoi.toFixed(1)));
+      els.targetNoi.value = clampedNoi;
+      if (document.getElementById("valTargetNoi")) {
+        document.getElementById("valTargetNoi").textContent = `£${stabilizedNoi.toFixed(1)}M/yr`;
+      }
+    }
+    if (modeComment) {
+      modeComment.textContent = "Auto mode: Stabilized NOI is calculated from Capacity (MW) × Rent (£/kW/mo) × 0.012.";
+    }
+  }
   const landWeeks = +els.landWeeks.value;
   const landRatio = phaseBudgets.land / 100;
   const shellWeeks = +els.shellWeeks.value;
@@ -135,7 +173,6 @@ function update() {
   const totalDebt = totalCapex * ltc;
   const totalEquity = totalCapex - totalDebt;
   const annualDebtService = totalDebt * debtRate;
-  const stabilizedNoi = totalMw * rentPerMw * 0.012;
   // Yield on Cost driven directly by yocInput slider
   const grossExit = (totalCapex * yocRatio) / exitCap;
   const netExit = grossExit - totalDebt;
@@ -244,7 +281,7 @@ function update() {
   document.getElementById("kpiWeeks").textContent = `${totalWeeks} wks`;
   document.getElementById("kpiYears").textContent = `${buildYears.toFixed(2)} yrs total phases`;
   document.getElementById("kpiExit").textContent = `£${grossExit.toFixed(1)}M`;
-  document.getElementById("kpiNoi").textContent = `Stabilized NOI: £${stabilizedNoi.toFixed(1)}M/yr`;
+  document.getElementById("kpiNoi").textContent = `Stabilized NOI: £${stabilizedNoi.toFixed(1)}M/yr (${isNoiLocked ? "Locked" : "Auto"})`;
   document.getElementById("kpiIrrPreLeased").textContent = isFinite(irrPreLeased) ? `${irrPreLeased.toFixed(1)}%` : "N/A";
   document.getElementById("kpiExitTiming").textContent = `Exit ~${exitYears.toFixed(2)} yrs`;
   document.getElementById("kpiIrrBase").textContent = `${irrBase.toFixed(1)}%`;
@@ -289,7 +326,11 @@ els.ofciPct.addEventListener("input", () => { rebalanceBudgets("ofci"); update()
 });
 document.getElementById("resetBtn").addEventListener("click", () => {
   phaseBudgets = { land: DEFAULTS.landPct, shell: DEFAULTS.shellPct, ofci: DEFAULTS.ofciPct };
-  Object.entries(DEFAULTS).forEach(([k, v]) => { if (els[k]) els[k].value = v; });
+  Object.entries(DEFAULTS).forEach(([k, v]) => {
+    if (!els[k]) return;
+    if (els[k].type === "checkbox") els[k].checked = Boolean(v);
+    else els[k].value = v;
+  });
   update();
 });
 

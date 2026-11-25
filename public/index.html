@@ -150,6 +150,22 @@
           <div class="slider-header"><span>Stabilized Net Rent (£/kW/mo)</span><span class="slider-val" id="valRentPerMw">£112.50/kW/mo</span></div>
           <input type="range" id="rentPerMw" min="70.00" max="180.00" step="2.50" value="112.50" />
         </div>
+        <div class="slider-group" style="margin-top:10px;padding:10px 12px;background:#273549;border:1px solid #334155;border-radius:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;">
+            <span style="font-size:0.86rem;font-weight:600;">Stabilized NOI Mode</span>
+            <label style="display:inline-flex;align-items:center;gap:6px;font-size:0.82rem;color:#38bdf8;cursor:pointer;">
+              <input type="checkbox" id="lockNoi" />
+              <span>Lock Target NOI</span>
+            </label>
+          </div>
+          <div id="targetNoiWrap" style="display:none;margin-top:8px;">
+            <div class="slider-header"><span>Target Stabilized NOI (£M/yr)</span><span class="slider-val" id="valTargetNoi">£12.0M/yr</span></div>
+            <input type="range" id="targetNoi" min="5.0" max="250.0" step="0.5" value="12.0" />
+          </div>
+          <div id="noiModeComment" style="font-size:0.76rem;color:#94a3b8;margin-top:4px;line-height:1.35;">
+            Auto mode: Stabilized NOI is calculated from Capacity (MW) × Rent (£/kW/mo) × 0.012.
+          </div>
+        </div>
 
         <div class="divider"></div>
         <h2>2. Build Phase Durations (Weeks)</h2>
@@ -200,7 +216,7 @@
         <div class="kpi-grid">
           <div class="kpi"><div class="kpi-label">Total Build Capex</div><div class="kpi-value" id="kpiCapex">£462.1M</div><div class="kpi-sub" id="kpiYoc">Yield on Cost: 9.20%</div></div>
           <div class="kpi"><div class="kpi-label">Total Build Schedule</div><div class="kpi-value" id="kpiWeeks">104 wks</div><div class="kpi-sub" id="kpiYears">2.00 yrs total phases</div></div>
-          <div class="kpi"><div class="kpi-label">Gross Exit Valuation</div><div class="kpi-value" id="kpiExit">£773.2M</div><div class="kpi-sub" id="kpiNoi">Stabilized NOI: £42.5M/yr</div></div>
+          <div class="kpi"><div class="kpi-label">Gross Exit Valuation</div><div class="kpi-value" id="kpiExit">£773.2M</div><div class="kpi-sub" id="kpiNoi">Stabilized NOI: £12.0M/yr (Auto)</div></div>
           <div class="kpi"><div class="kpi-label">100% Pre-Leased (RFS+9m)</div><div class="kpi-value pos" id="kpiIrrPreLeased">57.6%</div><div class="kpi-sub" id="kpiExitTiming">Exit ~2.75 yrs</div></div>
         <div class="kpi"><div class="kpi-label">Baseline Levered IRR</div><div class="kpi-value pos" id="kpiIrrBase">25.1%</div><div class="kpi-sub" id="kpiIrrPhased">Staged OFCI IRR: 26.6%</div></div>
           <div class="kpi"><div class="kpi-label">12-Mo Grid Delay IRR</div><div class="kpi-value neg" id="kpiIrrDelay">18.4%</div><div class="kpi-sub" id="kpiIrrSpread">Delay Drag: -670 bps</div></div>
