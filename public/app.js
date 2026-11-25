@@ -484,11 +484,7 @@ function update() {
     const r = computeTimedIRR(windowCfs);
     return isFinite(r) ? +(r * 100).toFixed(1) : null;
   });
-const hasPos = windowCfs.some(function(p) { return p[1] > 0; });
-    if (!hasNeg || !hasPos) return null;
-    const r = computeTimedIRR(windowCfs);
-    return isFinite(r) ? +(r * 100).toFixed(1) : null;
-  // removed orphaned closing parenthesis
+
   if (baselineIrrChart && baselineIrrChart.data && Array.isArray(baselineIrrChart.data.datasets)) {
     if (baselineIrrChart.data.datasets[0]) baselineIrrChart.data.datasets[0].data = irrOverTime;
     if (baselineIrrChart.data.datasets[1]) baselineIrrChart.data.datasets[1].data = [];
@@ -606,6 +602,7 @@ function bindControls() {
 
 document.addEventListener("DOMContentLoaded", function() {
   initChart();
+  if (typeof initBaselineIrrChart === "function") initBaselineIrrChart();
   bindControls();
   update();
 });
