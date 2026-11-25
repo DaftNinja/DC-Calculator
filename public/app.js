@@ -216,6 +216,14 @@ function initBaselineIrrChart() {
   if (baselineIrrChart && typeof baselineIrrChart.destroy === "function") {
     baselineIrrChart.destroy();
   }
+  const quarterlyLabels = [];
+  for (let q = 0; q <= 24; q++) {
+    if (q % 4 === 0) {
+      quarterlyLabels.push("Yr " + (q / 4));
+    } else {
+      quarterlyLabels.push("Q" + (q % 4));
+    }
+  }
   const hurdle16LinePlugin = {
     id: "hurdle16LinePlugin",
     afterDatasetsDraw(chart) {
@@ -238,7 +246,7 @@ function initBaselineIrrChart() {
   baselineIrrChart = new Chart(ctx, {
     type: "line",
     data: {
-      labels: ["Yr 0", "Yr 1", "Yr 2", "Yr 3", "Yr 4", "Yr 5", "Yr 6"],
+      labels: quarterlyLabels,
       datasets: [
         {
           label: "Baseline Levered IRR (%)",
@@ -248,7 +256,9 @@ function initBaselineIrrChart() {
           fill: true,
           tension: 0.25,
           borderWidth: 2.5,
-          pointRadius: 4,
+          pointRadius: function(context) {
+            return context.dataIndex % 4 === 0 ? 4 : 1.5;
+          },
           spanGaps: false
         },
         {
@@ -272,7 +282,25 @@ function initBaselineIrrChart() {
         legend: { labels: { color: "#cbd5e1", boxWidth: 14 } }
       },
       scales: {
-        x: { stacked: false, ticks: { color: "#94a3b8" }, grid: { color: "rgba(148,163,184,0.12)" } },
+        x: {
+          stacked: false,
+          ticks: {
+            color: function(context) {
+              return context.index % 4 === 0 ? "#cbd5e1" : "#64748b";
+            },
+            font: function(context) {
+              return { weight: context.index % 4 === 0 ? "700" : "400", size: context.index % 4 === 0 ? 11 : 10 };
+            },
+            autoSkip: false,
+            maxRotation: 0
+          },
+          grid: {
+            color: function(context) {
+              return context.index % 4 === 0 ? "rgba(148,163,184,0.22)" : "rgba(148,163,184,0.08)";
+            },
+            tickLength: 6
+          }
+        },
         y: {
           stacked: false,
           ticks: {
@@ -461,29 +489,46 @@ function update() {
     initBaselineIrrChart();
   }
   const irrGateYr = Math.max(2, Math.min(6, Math.ceil(totalWeeks / 52)));
-  const irrOverTime = cfBase.map(function(cfVal, yr) {
-    if (yr < irrGateYr) return null;
+  const irrOverTime = [];
+  for (let q = 0; q <= 24; q++) {
+    const tYr = q / 4;
+    if (tYr < irrGateYr) {
+      irrOverTime.push(null);
+      continue;
+    }
+    const fullYrs = Math.floor(tYr);
+    const fracYr = tYr - fullYrs;
     const windowCfs = [];
-    for (let i = 0; i <= yr; i++) {
-      let amt = cfBase[i];
-      if (i === yr) {
-        if (yr === 5) {
+    for (let i = 0; i <= Math.min(6, fullYrs); i++) {
+      let amt = cfBase[i] || 0;
+      if (i === fullYrs && fracYr > 0) {
+        const nextCf = cfBase[i + 1] || 0;
+        amt = amt + (nextCf - amt) * fracYr;
+      }
+      if (i === Math.min(6, fullYrs)) {
+        if (Math.abs(tYr - 5) < 1e-6) {
           amt = cfBase[5];
-        } else if (yr === 6) {
+        } else if (Math.abs(tYr - 6) < 1e-6) {
           amt = cfBase[5] + cfBase[6];
-        } else {
-          const opCash = stabilizedNoi * (yr === 2 ? 0.35 : yr === 3 ? 0.75 : 1.0) - annualInterest;
+        } else if (tYr < 5) {
+          const rampFactor = tYr <= 2 ? 0.35 : tYr <= 3 ? 0.35 + (tYr - 2) * 0.40 : 0.75 + (tYr - 3) * 0.25;
+          const opCash = stabilizedNoi * rampFactor - annualInterest * Math.min(1, tYr / 2);
           amt = opCash + netExit;
+        } else {
+          amt = cfBase[5] + (cfBase[6] || 0) * ((tYr - 5) / 1);
         }
       }
-      windowCfs.push([i, amt]);
+      windowCfs.push([i === Math.min(6, fullYrs) ? tYr : i, amt]);
     }
     const hasNeg = windowCfs.some(function(p) { return p[1] < 0; });
     const hasPos = windowCfs.some(function(p) { return p[1] > 0; });
-    if (!hasNeg || !hasPos) return null;
+    if (!hasNeg || !hasPos) {
+      irrOverTime.push(null);
+      continue;
+    }
     const r = computeTimedIRR(windowCfs);
-    return isFinite(r) ? +(r * 100).toFixed(1) : null;
-  });
+    irrOverTime.push(isFinite(r) ? +(r * 100).toFixed(1) : null);
+  }
 
   if (baselineIrrChart && baselineIrrChart.data && Array.isArray(baselineIrrChart.data.datasets)) {
     if (baselineIrrChart.data.datasets[0]) baselineIrrChart.data.datasets[0].data = irrOverTime;
@@ -492,7 +537,7 @@ function update() {
   }
   setText(
     "baselineIrrTrajectoryNote",
-    "16% Hurdle · Yr 5 IRR: " + (isFinite(irrBase) ? irrBase.toFixed(1) + "%" : "N/A") + " · Yr 6 Exit: " + (irrOverTime[6] !== null ? irrOverTime[6].toFixed(1) + "%" : "N/A")
+    "16% Hurdle · Yr 5 IRR: " + (isFinite(irrBase) ? irrBase.toFixed(1) + "%" : "N/A") + " · Yr 6 Exit: " + (irrOverTime[24] !== null ? irrOverTime[24].toFixed(1) + "%" : "N/A")
   );
 
   if (cashChart && cashChart.data && Array.isArray(cashChart.data.datasets)) {
