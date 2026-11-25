@@ -126,19 +126,55 @@ function initChart() {
   if (cashChart && typeof cashChart.destroy === "function") {
     cashChart.destroy();
   }
+  const monthlyLabels = [];
+  for (let m = 0; m <= 72; m++) {
+    if (m % 12 === 0) {
+      monthlyLabels.push("Yr " + (m / 12));
+    } else {
+      monthlyLabels.push("");
+    }
+  }
+  const monthlyQuarterlyTicksPlugin = {
+    id: "monthlyQuarterlyTicksPlugin",
+    afterTicksTickDraw: null,
+    afterDraw(chart) {
+      const { ctx, chartArea, scales } = chart;
+      const xScale = scales && scales.x;
+      if (!chartArea || !xScale) return;
+      const baseY = chartArea.bottom;
+      ctx.save();
+      for (let m = 0; m <= 72; m++) {
+        const xPos = xScale.getPixelForValue(m);
+        if (!isFinite(xPos)) continue;
+        const isYear = m % 12 === 0;
+        const isQuarter = !isYear && m % 3 === 0;
+        const tickLen = isYear ? 9 : (isQuarter ? 7 : 3);
+        ctx.beginPath();
+        ctx.lineWidth = isYear ? 1.5 : (isQuarter ? 1.2 : 0.8);
+        ctx.strokeStyle = isYear
+          ? "rgba(148,163,184,0.45)"
+          : (isQuarter ? "rgba(148,163,184,0.32)" : "rgba(148,163,184,0.16)");
+        ctx.moveTo(xPos, baseY);
+        ctx.lineTo(xPos, baseY + tickLen);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  };
   const ctx = canvas.getContext("2d");
   cashChart = new Chart(ctx, {
     type: "line",
     data: {
-      labels: ["Yr 0", "Yr 1", "Yr 2", "Yr 3", "Yr 4", "Yr 5", "Yr 6"],
+      labels: monthlyLabels,
       datasets: [
-        { label: "Baseline (On-Time)", data: [], borderColor: "#38bdf8", backgroundColor: "rgba(56,189,248,0.12)", tension: 0.25, borderWidth: 2.5 },
-        { label: "Phased Power + Staged OFCI", data: [], borderColor: "#34d399", tension: 0.25, borderWidth: 2 },
-        { label: "Phased Power (Upfront OFCI)", data: [], borderColor: "#a78bfa", tension: 0.25, borderWidth: 2 },
-        { label: "12-Mo Grid Delay (Yr 6 Exit)", data: [], borderColor: "#f87171", tension: 0.25, borderWidth: 2.5, borderDash: [6, 4] },
-        { label: "100% Pre-Leased (Exit RFS + 9 Mos)", data: [], borderColor: "#fbbf24", tension: 0.25, borderWidth: 2.5 }
+        { label: "Baseline (On-Time)", data: [], borderColor: "#38bdf8", backgroundColor: "rgba(56,189,248,0.12)", tension: 0.25, borderWidth: 2.5, pointRadius: function(c) { return c.dataIndex % 12 === 0 ? 3.5 : 0; } },
+        { label: "Phased Power + Staged OFCI", data: [], borderColor: "#34d399", tension: 0.25, borderWidth: 2, pointRadius: function(c) { return c.dataIndex % 12 === 0 ? 3 : 0; } },
+        { label: "Phased Power (Upfront OFCI)", data: [], borderColor: "#a78bfa", tension: 0.25, borderWidth: 2, pointRadius: function(c) { return c.dataIndex % 12 === 0 ? 3 : 0; } },
+        { label: "12-Mo Grid Delay (Yr 6 Exit)", data: [], borderColor: "#f87171", tension: 0.25, borderWidth: 2.5, borderDash: [6, 4], pointRadius: function(c) { return c.dataIndex % 12 === 0 ? 3 : 0; } },
+        { label: "100% Pre-Leased (Exit RFS + 9 Mos)", data: [], borderColor: "#fbbf24", tension: 0.25, borderWidth: 2.5, pointRadius: function(c) { return c.dataIndex % 12 === 0 ? 3 : 0; } }
       ]
     },
+    plugins: [monthlyQuarterlyTicksPlugin],
     options: {
       responsive: true,
       maintainAspectRatio: false,
@@ -147,7 +183,20 @@ function initChart() {
         legend: { labels: { color: "#cbd5e1", boxWidth: 14 } }
       },
       scales: {
-        x: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(148,163,184,0.12)" } },
+        x: {
+          ticks: {
+            color: "#94a3b8",
+            autoSkip: false,
+            maxRotation: 0,
+            callback: function(val, idx) {
+              return idx % 12 === 0 ? "Yr " + (idx / 12) : "";
+            }
+          },
+          grid: {
+            display: false,
+            tickLength: 0
+          }
+        },
         y: {
           ticks: {
             color: "#94a3b8",
@@ -593,12 +642,26 @@ function update() {
   );
 
   if (cashChart && cashChart.data && Array.isArray(cashChart.data.datasets)) {
+    const toMonthlySeries = function(yearlyArr) {
+      const cum = cumulative(yearlyArr);
+      const out = [];
+      for (let m = 0; m <= 72; m++) {
+        const yrExact = m / 12;
+        const y0 = Math.min(6, Math.floor(yrExact));
+        const y1 = Math.min(6, y0 + 1);
+        const frac = yrExact - y0;
+        const v0 = cum[y0] || 0;
+        const v1 = cum[y1] || 0;
+        out.push(+(v0 + (v1 - v0) * frac).toFixed(2));
+      }
+      return out;
+    };
     const ds = cashChart.data.datasets;
-    if (ds[0]) ds[0].data = cumulative(cfBase);
-    if (ds[1]) ds[1].data = cumulative(cfPhasedStaged);
-    if (ds[2]) ds[2].data = cumulative(cfPhasedUpfront);
-    if (ds[3]) ds[3].data = cumulative(cfDelay);
-    if (ds[4]) ds[4].data = cumulative(cfPreLeased);
+    if (ds[0]) ds[0].data = toMonthlySeries(cfBase);
+    if (ds[1]) ds[1].data = toMonthlySeries(cfPhasedStaged);
+    if (ds[2]) ds[2].data = toMonthlySeries(cfPhasedUpfront);
+    if (ds[3]) ds[3].data = toMonthlySeries(cfDelay);
+    if (ds[4]) ds[4].data = toMonthlySeries(cfPreLeased);
     cashChart.update("none");
   }
 
