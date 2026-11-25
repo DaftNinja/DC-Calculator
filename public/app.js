@@ -407,50 +407,97 @@ function update() {
   setText("kpiExit", fmtM(grossExit));
   setText("kpiNoi", "Stabilized NOI: £" + stabilizedNoi.toFixed(1) + "M/yr (" + (isNoiLocked ? "Locked" : "Auto") + ")");
 
-  const capexYr0 = totalEquity * 0.5;
-  const capexYr1 = totalEquity * 0.5;
+  // Sequential stage tranches: Land & Power -> Shell & Core -> OFCI (Fit-Out)
+  const tLandYr = landWeeks / 52;
+  const tShellYr = (landWeeks + shellWeeks) / 52;
+  const tOfciYr = totalWeeks / 52;
+
+  const landCapex = totalCapex * landRatio;
+  const shellCapex = totalCapex * shellRatio;
+  const ofciCapex = totalCapex * ofciRatio;
+
+  const debtLand = landCapex * (ltcPct / 100);
+  const debtShell = shellCapex * (ltcPct / 100);
+  const debtOfci = ofciCapex * (ltcPct / 100);
+
+  const eqLand = landCapex - debtLand;
+  const eqShell = shellCapex - debtShell;
+  const eqOfci = ofciCapex - debtOfci;
+
+  function cumulativeDrawnDebtAt(yr) {
+    let drawn = 0;
+    if (yr >= 0) {
+      const fracLand = tLandYr > 0 ? Math.min(1, Math.max(0, yr / tLandYr)) : 1;
+      drawn += debtLand * fracLand;
+    }
+    if (yr > tLandYr) {
+      const durShell = Math.max(0.01, tShellYr - tLandYr);
+      const fracShell = Math.min(1, Math.max(0, (yr - tLandYr) / durShell));
+      drawn += debtShell * fracShell;
+    }
+    if (yr > tShellYr) {
+      const durOfci = Math.max(0.01, tOfciYr - tShellYr);
+      const fracOfci = Math.min(1, Math.max(0, (yr - tShellYr) / durOfci));
+      drawn += debtOfci * fracOfci;
+    }
+    return Math.min(totalDebt, drawn);
+  }
+
+  function stageInterestForYear(yrStart, yrEnd, delayExtraYrs) {
+    const s = Math.max(0, yrStart + (delayExtraYrs || 0));
+    const e = Math.max(s, yrEnd + (delayExtraYrs || 0));
+    const midDebt = cumulativeDrawnDebtAt((s + e) / 2);
+    return midDebt * debtRate * (e - s);
+  }
+
+  const capexYr0 = eqLand + eqShell * Math.min(1, Math.max(0, (1 - tLandYr) / Math.max(0.01, tShellYr - tLandYr)));
+  const capexYr1 = Math.max(0, totalEquity - capexYr0);
   const annualInterest = totalDebt * debtRate;
-  const annualLeveredCash = stabilizedNoi - annualInterest;
+  const intYr2 = stageInterestForYear(2, 3, 0);
+  const intYr3 = stageInterestForYear(3, 4, 0);
+  const intYr4 = stageInterestForYear(4, 5, 0);
+  const intYr5 = stageInterestForYear(5, 6, 0);
+  const annualLeveredCash = stabilizedNoi - intYr4;
 
   const cfBase = [
     -capexYr0,
     -capexYr1,
-    stabilizedNoi * 0.35 - annualInterest,
-    stabilizedNoi * 0.75 - annualInterest,
-    annualLeveredCash,
-    annualLeveredCash + netExit,
+    stabilizedNoi * 0.35 - intYr2,
+    stabilizedNoi * 0.75 - intYr3,
+    stabilizedNoi - intYr4,
+    stabilizedNoi - intYr5 + netExit,
     0
   ];
 
   const stagedFactor = 0.96 + 0.08 * (landRatio + shellRatio);
   const cfPhasedStaged = [
-    -capexYr0 * (0.85 + 0.15 * landRatio),
-    -capexYr1 * (0.90 + 0.10 * shellRatio),
-    stabilizedNoi * 0.45 * stagedFactor - annualInterest,
-    stabilizedNoi * 0.85 * stagedFactor - annualInterest,
-    annualLeveredCash * 1.03,
-    annualLeveredCash * 1.03 + netExit * 1.02,
+    -(eqLand * 0.9 + eqShell * 0.5),
+    -(totalEquity - (eqLand * 0.9 + eqShell * 0.5)),
+    stabilizedNoi * 0.45 * stagedFactor - intYr2,
+    stabilizedNoi * 0.85 * stagedFactor - intYr3,
+    stabilizedNoi * 1.03 - intYr4,
+    stabilizedNoi * 1.03 - intYr5 + netExit * 1.02,
     0
   ];
 
   const cfPhasedUpfront = [
-    -capexYr0 * (0.95 + 0.05 * ofciRatio),
-    -capexYr1 * (1.0 + 0.05 * ofciRatio),
-    stabilizedNoi * 0.42 - annualInterest,
-    stabilizedNoi * 0.80 - annualInterest,
-    annualLeveredCash,
-    annualLeveredCash + netExit,
+    -(eqLand + eqShell * 0.75 + eqOfci * 0.25),
+    -(totalEquity - (eqLand + eqShell * 0.75 + eqOfci * 0.25)),
+    stabilizedNoi * 0.42 - intYr2,
+    stabilizedNoi * 0.80 - intYr3,
+    stabilizedNoi - intYr4,
+    stabilizedNoi - intYr5 + netExit,
     0
   ];
 
   const cfDelay = [
     -capexYr0,
     -capexYr1,
-    -annualInterest,
-    stabilizedNoi * 0.35 - annualInterest,
-    stabilizedNoi * 0.75 - annualInterest,
-    annualLeveredCash,
-    annualLeveredCash + netExit
+    -stageInterestForYear(2, 3, 1),
+    stabilizedNoi * 0.35 - stageInterestForYear(3, 4, 1),
+    stabilizedNoi * 0.75 - stageInterestForYear(4, 5, 1),
+    stabilizedNoi - stageInterestForYear(5, 6, 1),
+    stabilizedNoi - stageInterestForYear(6, 7, 1) + netExit
   ];
 
   // RFS occurs strictly during the OFCI phase, hall by hall (1..halls),
@@ -460,7 +507,12 @@ function update() {
   const ofciRampNoi = computeOfciHallNoi(stabilizedNoi, halls, landWeeks, shellWeeks, ofciWeeks, finalRfsYears);
   const postRfs9mNoi = stabilizedNoi * 0.75;
   const preLeasedNoi = ofciRampNoi + postRfs9mNoi;
-  const preLeasedInterest = totalDebt * debtRate * (finalRfsYears + 0.75);
+  const avgDrawnDebtPreLeased = (
+    debtLand * Math.min(1, exitYears / Math.max(0.01, tLandYr)) +
+    debtShell * Math.min(1, Math.max(0, exitYears - tLandYr) / Math.max(0.01, tShellYr - tLandYr)) +
+    debtOfci * Math.min(1, Math.max(0, exitYears - tShellYr) / Math.max(0.01, tOfciYr - tShellYr))
+  ) / 3;
+  const preLeasedInterest = avgDrawnDebtPreLeased * debtRate * exitYears;
   const preLeasedNetProceeds = preLeasedNoi - preLeasedInterest + netExit;
   const irrPreLeased = computeTimedIRR([
     [0, cfBase[0]],
