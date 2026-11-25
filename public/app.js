@@ -117,6 +117,10 @@ function rebalanceBudgets(changed) {
   els.ofciPct.value = ofci;
 }
 
+function setText(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
 function update() {
   const grdMw = +els.grdMw.value;
   const halls = +els.halls.value;
@@ -137,7 +141,7 @@ function update() {
     rentPerMw = totalMw > 0 ? stabilizedNoi / (totalMw * 0.012) : 0;
     if (els.rentPerMw) els.rentPerMw.disabled = true;
     if (document.getElementById("valTargetNoi")) {
-      document.getElementById("valTargetNoi").textContent = `£${stabilizedNoi.toFixed(1)}M/yr`;
+      setText("valTargetNoi", `£${stabilizedNoi.toFixed(1)}M/yr`);
     }
     if (modeComment) {
       modeComment.textContent = `Target NOI locked at £${stabilizedNoi.toFixed(1)}M/yr; implied Net Rent is back-solved to £${rentPerMw.toFixed(2)}/kW/mo.`;
@@ -149,7 +153,7 @@ function update() {
       const clampedNoi = Math.max(+els.targetNoi.min, Math.min(+els.targetNoi.max, +stabilizedNoi.toFixed(1)));
       els.targetNoi.value = clampedNoi;
       if (document.getElementById("valTargetNoi")) {
-        document.getElementById("valTargetNoi").textContent = `£${stabilizedNoi.toFixed(1)}M/yr`;
+        setText("valTargetNoi", `£${stabilizedNoi.toFixed(1)}M/yr`);
       }
     }
     if (modeComment) {
@@ -181,23 +185,23 @@ function update() {
   const buildYears = totalWeeks / 52;
   const scheduleDragFactor = Math.max(0.5, Math.min(1.5, 104 / totalWeeks));
 
-  document.getElementById("valGrdMw").textContent = `${grdMw.toFixed(1)} MW`;
-  document.getElementById("labelHalls").textContent = `GRD Data Halls (${grdMw.toFixed(1)} MW each)`;
-  document.getElementById("pageTitle").textContent = `${grdMw.toFixed(1)} MW GRD Data Centre IRR & Cash Flow Explorer`;
-  document.getElementById("pageSubtitle").textContent = `Modular Data Hall Scaling (${grdMw.toFixed(1)} MW GRD), Phase Durations (Weeks), Leverage & Yield on Cost`;
-  document.getElementById("valHalls").textContent = `${halls} ${halls === 1 ? "hall" : "halls"} (${totalMw.toFixed(1)} MW)`;
-  document.getElementById("valCostPerMw").textContent = `£${costPerMw.toFixed(2)}M/MW`;
-  document.getElementById("valRentPerMw").textContent = `£${rentPerMw.toFixed(2)}/kW/mo`;
-  document.getElementById("valLandWeeks").textContent = `${landWeeks} wks`;
-  document.getElementById("valLandPct").textContent = `${phaseBudgets.land}% (£${(totalCapex * landRatio).toFixed(1)}M)`;
-  document.getElementById("valShellWeeks").textContent = `${shellWeeks} wks`;
-  document.getElementById("valShellPct").textContent = `${phaseBudgets.shell}% (£${(totalCapex * shellRatio).toFixed(1)}M)`;
-  document.getElementById("valOfciWeeks").textContent = `${ofciWeeks} wks`;
-  document.getElementById("valOfciPct").textContent = `${phaseBudgets.ofci}% (£${(totalCapex * ofciRatio).toFixed(1)}M)`;
-  document.getElementById("valLtc").textContent = `${(ltc * 100).toFixed(0)}%`;
-  document.getElementById("valDebtRate").textContent = `${(debtRate * 100).toFixed(2)}%`;
-  document.getElementById("valYoc").textContent = `${yoc.toFixed(2)}%`;
-  document.getElementById("headerSummary").textContent = `${halls} Halls · ${totalMw.toFixed(1)} MW · £${totalCapex.toFixed(1)}M Capex`;
+  setText("valGrdMw", `${grdMw.toFixed(1)} MW`);
+  setText("labelHalls", `GRD Data Halls (${grdMw.toFixed(1)} MW each)`);
+  setText("pageTitle", `${grdMw.toFixed(1)} MW GRD Data Centre IRR & Cash Flow Explorer`);
+  setText("pageSubtitle", `Modular Data Hall Scaling (${grdMw.toFixed(1)} MW GRD), Phase Durations (Weeks), Leverage & Yield on Cost`);
+  setText("valHalls", `${halls} ${halls === 1 ? "hall" : "halls"} (${totalMw.toFixed(1)} MW)`);
+  setText("valCostPerMw", `£${costPerMw.toFixed(2)}M/MW`);
+  setText("valRentPerMw", `£${rentPerMw.toFixed(2)}/kW/mo`);
+  setText("valLandWeeks", `${landWeeks} wks`);
+  setText("valLandPct", `${phaseBudgets.land}% (£${(totalCapex * landRatio).toFixed(1)}M)`);
+  setText("valShellWeeks", `${shellWeeks} wks`);
+  setText("valShellPct", `${phaseBudgets.shell}% (£${(totalCapex * shellRatio).toFixed(1)}M)`);
+  setText("valOfciWeeks", `${ofciWeeks} wks`);
+  setText("valOfciPct", `${phaseBudgets.ofci}% (£${(totalCapex * ofciRatio).toFixed(1)}M)`);
+  setText("valLtc", `${(ltc * 100).toFixed(0)}%`);
+  setText("valDebtRate", `${(debtRate * 100).toFixed(2)}%`);
+  setText("valYoc", `${yoc.toFixed(2)}%`);
+  setText("headerSummary", `${halls} Halls · ${totalMw.toFixed(1)} MW · £${totalCapex.toFixed(1)}M Capex`);
 
   const landShellShare = landRatio + shellRatio;
   const ofciShare = ofciRatio;
@@ -276,18 +280,18 @@ function update() {
   const irrPhasedUp = computeTimedIRR(cfPhasedUpfront.slice(0, 6).map((v, idx) => [idx, v])) * 100;
   const irrPhasedOfci = computeTimedIRR(cfPhasedOfci.slice(0, 6).map((v, idx) => [idx, v])) * 100;
 
-  document.getElementById("kpiCapex").textContent = `£${totalCapex.toFixed(1)}M`;
-  document.getElementById("kpiYoc").textContent = `Yield on Cost: ${yoc.toFixed(2)}%`;
-  document.getElementById("kpiWeeks").textContent = `${totalWeeks} wks`;
-  document.getElementById("kpiYears").textContent = `${buildYears.toFixed(2)} yrs total phases`;
-  document.getElementById("kpiExit").textContent = `£${grossExit.toFixed(1)}M`;
-  document.getElementById("kpiNoi").textContent = `Stabilized NOI: £${stabilizedNoi.toFixed(1)}M/yr (${isNoiLocked ? "Locked" : "Auto"})`;
-  document.getElementById("kpiIrrPreLeased").textContent = isFinite(irrPreLeased) ? `${irrPreLeased.toFixed(1)}%` : "N/A";
-  document.getElementById("kpiExitTiming").textContent = `Exit ~${exitYears.toFixed(2)} yrs`;
-  document.getElementById("kpiIrrBase").textContent = `${irrBase.toFixed(1)}%`;
-  document.getElementById("kpiIrrPhased").textContent = `Staged OFCI IRR: ${irrPhasedOfci.toFixed(1)}%`;
-  document.getElementById("kpiIrrDelay").textContent = `${irrDelay.toFixed(1)}%`;
-  document.getElementById("kpiIrrSpread").textContent = `Delay Drag: ${Math.round((irrDelay - irrBase) * 100)} bps`;
+  setText("kpiCapex", `£${totalCapex.toFixed(1)}M`);
+  setText("kpiYoc", `Yield on Cost: ${yoc.toFixed(2)}%`);
+  setText("kpiWeeks", `${totalWeeks} wks`);
+  setText("kpiYears", `${buildYears.toFixed(2)} yrs total phases`);
+  setText("kpiExit", `£${grossExit.toFixed(1)}M`);
+  setText("kpiNoi", `Stabilized NOI: £${stabilizedNoi.toFixed(1)}M/yr (${isNoiLocked ? "Locked" : "Auto"})`);
+  setText("kpiIrrPreLeased", isFinite(irrPreLeased) ? `${irrPreLeased.toFixed(1)}%` : "N/A");
+  setText("kpiExitTiming", `Exit ~${exitYears.toFixed(2)} yrs`);
+  setText("kpiIrrBase", `${irrBase.toFixed(1)}%`);
+  setText("kpiIrrPhased", `Staged OFCI IRR: ${irrPhasedOfci.toFixed(1)}%`);
+  setText("kpiIrrDelay", `${irrDelay.toFixed(1)}%`);
+  setText("kpiIrrSpread", `Delay Drag: ${Math.round((irrDelay - irrBase) * 100)} bps`);
 
   const cumBase = cumulative(cfBase.slice(0, 6)); cumBase.push(cumBase[5]);
   const cumPhasedOfci = cumulative(cfPhasedOfci.slice(0, 6)); cumPhasedOfci.push(cumPhasedOfci[5]);
@@ -335,3 +339,24 @@ document.getElementById("resetBtn").addEventListener("click", () => {
 });
 
 update();
+
+
+// Ensure all known controls trigger update() reliably
+[
+  "grdMw", "halls", "costPerMw", "rentPerMw", "lockNoi", "targetNoi",
+  "landWeeks", "landPct", "shellWeeks", "shellPct", "ofciWeeks", "ofciPct",
+  "ltc", "debtRate", "yocInput"
+].forEach(id => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (id === "landPct") {
+    el.addEventListener("input", () => { if (typeof rebalanceBudgets === "function") rebalanceBudgets("land"); update(); });
+  } else if (id === "shellPct") {
+    el.addEventListener("input", () => { if (typeof rebalanceBudgets === "function") rebalanceBudgets("shell"); update(); });
+  } else if (id === "ofciPct") {
+    el.addEventListener("input", () => { if (typeof rebalanceBudgets === "function") rebalanceBudgets("ofci"); update(); });
+  } else {
+    el.addEventListener("input", update);
+    el.addEventListener("change", update);
+  }
+});
