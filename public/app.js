@@ -188,6 +188,27 @@ function computeOfciHallNoi(totalNoi, hallCount, landWks, shellWks, ofciWks, hor
   return totalEarned;
 }
 
+function computeFourMonthPhasedNoi(totalNoi, hallCount, landWks, shellWks, ofciWks, horizonYears) {
+  const nHalls = Math.max(1, Math.round(hallCount));
+  // First RFS occurs after Land & Power + Shell & Core; subsequent tranches step every 4 months (1/3 yr)
+  const firstRfsYears = Math.max(0, (landWks + shellWks) / 52);
+  const stepYears = 4 / 12;
+  const tranches = Math.max(1, nHalls);
+  const steps = 240;
+  const dt = horizonYears / steps;
+  let earned = 0;
+
+  for (let i = 0; i < steps; i++) {
+    const tMid = (i + 0.5) * dt;
+    if (tMid < firstRfsYears) continue;
+    const elapsedSinceFirstRfs = tMid - firstRfsYears;
+    const unlockedTranches = Math.min(tranches, 1 + Math.floor(elapsedSinceFirstRfs / stepYears));
+    const activeShare = unlockedTranches / tranches;
+    earned += totalNoi * activeShare * dt;
+  }
+  return earned;
+}
+
 function update() {
   const grdMw = numVal("grdMw", DEFAULTS.grdMw);
   const halls = numVal("halls", DEFAULTS.halls);
