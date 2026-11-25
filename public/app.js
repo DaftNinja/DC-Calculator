@@ -9,7 +9,7 @@ const DEFAULTS = {
   shellPct: 45,
   ofciWeeks: 38,
   ofciPct: 35,
-  ltc: 60,
+  ltc: 0,
   debtRate: 0,
   yocInput: 9.20
 };
