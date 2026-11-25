@@ -170,8 +170,7 @@ function initChart() {
         { label: "Baseline (On-Time)", data: [], borderColor: "#38bdf8", backgroundColor: "rgba(56,189,248,0.12)", tension: 0.25, borderWidth: 2.5, pointRadius: function(c) { return c.dataIndex % 12 === 0 ? 3.5 : 0; } },
         { label: "Phased Power + Staged OFCI", data: [], borderColor: "#34d399", tension: 0.25, borderWidth: 2, pointRadius: function(c) { return c.dataIndex % 12 === 0 ? 3 : 0; } },
         { label: "Phased Power (Upfront OFCI)", data: [], borderColor: "#a78bfa", tension: 0.25, borderWidth: 2, pointRadius: function(c) { return c.dataIndex % 12 === 0 ? 3 : 0; } },
-        { label: "12-Mo Grid Delay (Yr 6 Exit)", data: [], borderColor: "#f87171", tension: 0.25, borderWidth: 2.5, borderDash: [6, 4], pointRadius: function(c) { return c.dataIndex % 12 === 0 ? 3 : 0; } },
-        { label: "100% Pre-Leased (Exit RFS + 9 Mos)", data: [], borderColor: "#fbbf24", tension: 0.25, borderWidth: 2.5, pointRadius: function(c) { return c.dataIndex % 12 === 0 ? 3 : 0; } }
+{ label: "100% Pre-Leased (Exit RFS + 9 Mos)", data: [], borderColor: "#fbbf24", tension: 0.25, borderWidth: 2.5, pointRadius: function(c) { return c.dataIndex % 12 === 0 ? 3 : 0; } }
       ]
     },
     plugins: [monthlyQuarterlyTicksPlugin],
@@ -639,7 +638,7 @@ function update() {
   const irrOverTime = [];
   for (let q = 0; q <= 24; q++) {
     const tYr = q / 4;
-    if (tYr < irrGateYr) {
+    if (tYr < irrGateYr || tYr > flipExitYr + 1e-6) {
       irrOverTime.push(null);
       continue;
     }
@@ -682,9 +681,11 @@ function update() {
     if (baselineIrrChart.data.datasets[1]) baselineIrrChart.data.datasets[1].data = [];
     baselineIrrChart.update("none");
   }
+  const lastValidIrrIdx = irrOverTime.reduce(function(acc, val, idx) { return val !== null ? idx : acc; }, -1);
+  const exitIrrLabel = lastValidIrrIdx >= 0 ? irrOverTime[lastValidIrrIdx].toFixed(1) + "%" : "N/A";
   setText(
     "baselineIrrTrajectoryNote",
-    "16% Hurdle · Yr 5 IRR: " + (isFinite(irrBase) ? irrBase.toFixed(1) + "%" : "N/A") + " · Yr 6 Exit: " + (irrOverTime[24] !== null ? irrOverTime[24].toFixed(1) + "%" : "N/A")
+    "16% Hurdle · Flip Exit (~" + flipExitYr.toFixed(2) + " yrs) IRR: " + (isFinite(irrBase) ? irrBase.toFixed(1) + "%" : "N/A") + " · Last Plotted: " + exitIrrLabel
   );
 
   if (cashChart && cashChart.data && Array.isArray(cashChart.data.datasets)) {
@@ -806,17 +807,6 @@ function update() {
     }
     if (ds[3]) {
       ds[3].data = buildMonthlyCumulative({
-        exitYr: 6,
-        delayShift: 1.0,
-        noiMult: 1.0,
-        exitMult: 1.0,
-        eqLandShare: 0.45,
-        eqShellShare: 0.35,
-        eqOfciShare: 0.20
-      });
-    }
-    if (ds[4]) {
-      ds[4].data = buildMonthlyCumulative({
         exitYr: Math.min(6, exitYears),
         isPreLeased: true,
         exitMult: 1.0,
