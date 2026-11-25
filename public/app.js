@@ -1,5 +1,5 @@
-const GRD_MW = 4.5;
 const DEFAULTS = {
+  grdMw: 4.5,
   halls: 7,
   costPerMw: 14.67,
   rentPerMw: 112.5,
@@ -15,6 +15,7 @@ const DEFAULTS = {
 };
 
 const els = {
+  grdMw: document.getElementById("grdMw"),
   halls: document.getElementById("halls"),
   costPerMw: document.getElementById("costPerMw"),
   rentPerMw: document.getElementById("rentPerMw"),
@@ -113,6 +114,7 @@ function rebalanceBudgets(changed) {
 }
 
 function update() {
+  const grdMw = +els.grdMw.value;
   const halls = +els.halls.value;
   const costPerMw = +els.costPerMw.value;
   const rentPerMw = +els.rentPerMw.value;
@@ -128,7 +130,7 @@ function update() {
   const yocRatio = yoc / 100;
   const exitCap = 0.055;
 
-  const totalMw = halls * GRD_MW;
+  const totalMw = halls * grdMw;
   const totalCapex = totalMw * costPerMw;
   const totalDebt = totalCapex * ltc;
   const totalEquity = totalCapex - totalDebt;
@@ -142,6 +144,10 @@ function update() {
   const buildYears = totalWeeks / 52;
   const scheduleDragFactor = Math.max(0.5, Math.min(1.5, 104 / totalWeeks));
 
+  document.getElementById("valGrdMw").textContent = `${grdMw.toFixed(1)} MW`;
+  document.getElementById("labelHalls").textContent = `GRD Data Halls (${grdMw.toFixed(1)} MW each)`;
+  document.getElementById("pageTitle").textContent = `${grdMw.toFixed(1)} MW GRD Data Centre IRR & Cash Flow Explorer`;
+  document.getElementById("pageSubtitle").textContent = `Modular Data Hall Scaling (${grdMw.toFixed(1)} MW GRD), Phase Durations (Weeks), Leverage & Yield on Cost`;
   document.getElementById("valHalls").textContent = `${halls} ${halls === 1 ? "hall" : "halls"} (${totalMw.toFixed(1)} MW)`;
   document.getElementById("valCostPerMw").textContent = `£${costPerMw.toFixed(2)}M/MW`;
   document.getElementById("valRentPerMw").textContent = `£${rentPerMw.toFixed(2)}/kW/mo`;
@@ -278,7 +284,7 @@ function update() {
 els.landPct.addEventListener("input", () => { rebalanceBudgets("land"); update(); });
 els.shellPct.addEventListener("input", () => { rebalanceBudgets("shell"); update(); });
 els.ofciPct.addEventListener("input", () => { rebalanceBudgets("ofci"); update(); });
-[els.halls, els.costPerMw, els.rentPerMw, els.landWeeks, els.shellWeeks, els.ofciWeeks, els.ltc, els.debtRate, els.yocInput].forEach(el => {
+[els.grdMw, els.halls, els.costPerMw, els.rentPerMw, els.landWeeks, els.shellWeeks, els.ofciWeeks, els.ltc, els.debtRate, els.yocInput].forEach(el => {
   if (el) el.addEventListener("input", update);
 });
 document.getElementById("resetBtn").addEventListener("click", () => {

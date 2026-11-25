@@ -125,8 +125,8 @@
   <div class="container">
     <header>
       <div>
-        <h1>4.5 MW GRD Data Centre IRR & Cash Flow Explorer</h1>
-        <div class="subtitle">Modular Data Hall Scaling (4.5 MW GRD), Phase Durations (Weeks), Leverage & Exit Cap Rate</div>
+        <h1 id="pageTitle">4.5 MW GRD Data Centre IRR & Cash Flow Explorer</h1>
+        <div class="subtitle" id="pageSubtitle">Modular Data Hall Scaling (4.5 MW GRD), Phase Durations (Weeks), Leverage & Yield on Cost</div>
       </div>
       <div class="badge" id="headerSummary">7 Halls · 31.5 MW · £462.1M Capex</div>
     </header>
@@ -135,7 +135,11 @@
       <div class="card">
         <h2>1. Modular Capacity & Capex</h2>
         <div class="slider-group">
-          <div class="slider-header"><span>GRD Data Halls (4.5 MW each)</span><span class="slider-val" id="valHalls">7 halls (31.5 MW)</span></div>
+          <div class="slider-header"><span>MW per GRD Data Hall</span><span class="slider-val" id="valGrdMw">4.5 MW</span></div>
+          <input type="range" id="grdMw" min="2.0" max="10.0" step="0.5" value="4.5" />
+        </div>
+        <div class="slider-group">
+          <div class="slider-header"><span id="labelHalls">GRD Data Halls (4.5 MW each)</span><span class="slider-val" id="valHalls">7 halls (31.5 MW)</span></div>
           <input type="range" id="halls" min="1" max="30" step="1" value="7" />
         </div>
         <div class="slider-group">
