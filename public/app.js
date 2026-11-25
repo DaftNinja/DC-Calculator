@@ -146,11 +146,11 @@ function update() {
   document.getElementById("valCostPerMw").textContent = `£${costPerMw.toFixed(2)}M/MW`;
   document.getElementById("valRentPerMw").textContent = `£${rentPerMw.toFixed(2)}/kW/mo`;
   document.getElementById("valLandWeeks").textContent = `${landWeeks} wks`;
-  document.getElementById("valLandPct").textContent = `${phaseBudgets.land}%`;
+  document.getElementById("valLandPct").textContent = `${phaseBudgets.land}% (£${(totalCapex * landRatio).toFixed(1)}M)`;
   document.getElementById("valShellWeeks").textContent = `${shellWeeks} wks`;
-  document.getElementById("valShellPct").textContent = `${phaseBudgets.shell}%`;
+  document.getElementById("valShellPct").textContent = `${phaseBudgets.shell}% (£${(totalCapex * shellRatio).toFixed(1)}M)`;
   document.getElementById("valOfciWeeks").textContent = `${ofciWeeks} wks`;
-  document.getElementById("valOfciPct").textContent = `${phaseBudgets.ofci}%`;
+  document.getElementById("valOfciPct").textContent = `${phaseBudgets.ofci}% (£${(totalCapex * ofciRatio).toFixed(1)}M)`;
   document.getElementById("valLtc").textContent = `${(ltc * 100).toFixed(0)}%`;
   document.getElementById("valDebtRate").textContent = `${(debtRate * 100).toFixed(2)}%`;
   document.getElementById("valYoc").textContent = `${yoc.toFixed(2)}%`;
