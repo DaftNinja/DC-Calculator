@@ -126,54 +126,19 @@ function initChart() {
   if (cashChart && typeof cashChart.destroy === "function") {
     cashChart.destroy();
   }
-  const monthlyLabels = [];
-  for (let m = 0; m <= 72; m++) {
-    if (m % 12 === 0) {
-      monthlyLabels.push("Yr " + (m / 12));
-    } else {
-      monthlyLabels.push("");
-    }
-  }
-  const monthlyQuarterlyTicksPlugin = {
-    id: "monthlyQuarterlyTicksPlugin",
-    afterTicksTickDraw: null,
-    afterDraw(chart) {
-      const { ctx, chartArea, scales } = chart;
-      const xScale = scales && scales.x;
-      if (!chartArea || !xScale) return;
-      const baseY = chartArea.bottom;
-      ctx.save();
-      for (let m = 0; m <= 72; m++) {
-        const xPos = xScale.getPixelForValue(m);
-        if (!isFinite(xPos)) continue;
-        const isYear = m % 12 === 0;
-        const isQuarter = !isYear && m % 3 === 0;
-        const tickLen = isYear ? 9 : (isQuarter ? 7 : 3);
-        ctx.beginPath();
-        ctx.lineWidth = isYear ? 1.5 : (isQuarter ? 1.2 : 0.8);
-        ctx.strokeStyle = isYear
-          ? "rgba(148,163,184,0.45)"
-          : (isQuarter ? "rgba(148,163,184,0.32)" : "rgba(148,163,184,0.16)");
-        ctx.moveTo(xPos, baseY);
-        ctx.lineTo(xPos, baseY + tickLen);
-        ctx.stroke();
-      }
-      ctx.restore();
-    }
-  };
   const ctx = canvas.getContext("2d");
   cashChart = new Chart(ctx, {
     type: "line",
     data: {
-      labels: monthlyLabels,
+      labels: ["Yr 0", "Yr 1", "Yr 2", "Yr 3", "Yr 4", "Yr 5", "Yr 6"],
       datasets: [
-        { label: "Baseline (On-Time)", data: [], borderColor: "#38bdf8", backgroundColor: "rgba(56,189,248,0.12)", tension: 0.25, borderWidth: 2.5, pointRadius: function(c) { return c.dataIndex % 12 === 0 ? 3.5 : 0; } },
-        { label: "Phased Power + Staged OFCI", data: [], borderColor: "#34d399", tension: 0.25, borderWidth: 2, pointRadius: function(c) { return c.dataIndex % 12 === 0 ? 3 : 0; } },
-        { label: "Phased Power (Upfront OFCI)", data: [], borderColor: "#a78bfa", tension: 0.25, borderWidth: 2, pointRadius: function(c) { return c.dataIndex % 12 === 0 ? 3 : 0; } },
-{ label: "100% Pre-Leased (Exit RFS + 9 Mos)", data: [], borderColor: "#fbbf24", tension: 0.25, borderWidth: 2.5, pointRadius: function(c) { return c.dataIndex % 12 === 0 ? 3 : 0; } }
+        { label: "Baseline (On-Time)", data: [], borderColor: "#38bdf8", backgroundColor: "rgba(56,189,248,0.12)", tension: 0.25, borderWidth: 2.5 },
+        { label: "Phased Power + Staged OFCI", data: [], borderColor: "#34d399", tension: 0.25, borderWidth: 2 },
+        { label: "Phased Power (Upfront OFCI)", data: [], borderColor: "#a78bfa", tension: 0.25, borderWidth: 2 },
+        { label: "12-Mo Grid Delay (Yr 6 Exit)", data: [], borderColor: "#f87171", tension: 0.25, borderWidth: 2.5, borderDash: [6, 4] },
+        { label: "100% Pre-Leased (Exit RFS + 9 Mos)", data: [], borderColor: "#fbbf24", tension: 0.25, borderWidth: 2.5 }
       ]
     },
-    plugins: [monthlyQuarterlyTicksPlugin],
     options: {
       responsive: true,
       maintainAspectRatio: false,
@@ -182,20 +147,7 @@ function initChart() {
         legend: { labels: { color: "#cbd5e1", boxWidth: 14 } }
       },
       scales: {
-        x: {
-          ticks: {
-            color: "#94a3b8",
-            autoSkip: false,
-            maxRotation: 0,
-            callback: function(val, idx) {
-              return idx % 12 === 0 ? "Yr " + (idx / 12) : "";
-            }
-          },
-          grid: {
-            display: false,
-            tickLength: 0
-          }
-        },
+        x: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(148,163,184,0.12)" } },
         y: {
           ticks: {
             color: "#94a3b8",
@@ -264,14 +216,6 @@ function initBaselineIrrChart() {
   if (baselineIrrChart && typeof baselineIrrChart.destroy === "function") {
     baselineIrrChart.destroy();
   }
-  const quarterlyLabels = [];
-  for (let q = 0; q <= 24; q++) {
-    if (q % 4 === 0) {
-      quarterlyLabels.push("Yr " + (q / 4));
-    } else {
-      quarterlyLabels.push("Q" + (q % 4));
-    }
-  }
   const hurdle16LinePlugin = {
     id: "hurdle16LinePlugin",
     afterDatasetsDraw(chart) {
@@ -294,7 +238,7 @@ function initBaselineIrrChart() {
   baselineIrrChart = new Chart(ctx, {
     type: "line",
     data: {
-      labels: quarterlyLabels,
+      labels: ["Yr 0", "Yr 1", "Yr 2", "Yr 3", "Yr 4", "Yr 5", "Yr 6"],
       datasets: [
         {
           label: "Baseline Levered IRR (%)",
@@ -304,9 +248,7 @@ function initBaselineIrrChart() {
           fill: true,
           tension: 0.25,
           borderWidth: 2.5,
-          pointRadius: function(context) {
-            return context.dataIndex % 4 === 0 ? 4 : 1.5;
-          },
+          pointRadius: 4,
           spanGaps: false
         },
         {
@@ -330,25 +272,7 @@ function initBaselineIrrChart() {
         legend: { labels: { color: "#cbd5e1", boxWidth: 14 } }
       },
       scales: {
-        x: {
-          stacked: false,
-          ticks: {
-            color: function(context) {
-              return context.index % 4 === 0 ? "#cbd5e1" : "#64748b";
-            },
-            font: function(context) {
-              return { weight: context.index % 4 === 0 ? "700" : "400", size: context.index % 4 === 0 ? 11 : 10 };
-            },
-            autoSkip: false,
-            maxRotation: 0
-          },
-          grid: {
-            color: function(context) {
-              return context.index % 4 === 0 ? "rgba(148,163,184,0.22)" : "rgba(148,163,184,0.08)";
-            },
-            tickLength: 6
-          }
-        },
+        x: { stacked: false, ticks: { color: "#94a3b8" }, grid: { color: "rgba(148,163,184,0.12)" } },
         y: {
           stacked: false,
           ticks: {
@@ -455,128 +379,51 @@ function update() {
   setText("kpiExit", fmtM(grossExit));
   setText("kpiNoi", "Stabilized NOI: £" + stabilizedNoi.toFixed(1) + "M/yr (" + (isNoiLocked ? "Locked" : "Auto") + ")");
 
-  // Sequential stage tranches: Land & Power -> Shell & Core -> OFCI (Fit-Out)
-  const tLandYr = landWeeks / 52;
-  const tShellYr = (landWeeks + shellWeeks) / 52;
-  const tOfciYr = totalWeeks / 52;
-
-  const landCapex = totalCapex * landRatio;
-  const shellCapex = totalCapex * shellRatio;
-  const ofciCapex = totalCapex * ofciRatio;
-
-  const debtLand = landCapex * (ltcPct / 100);
-  const debtShell = shellCapex * (ltcPct / 100);
-  const debtOfci = ofciCapex * (ltcPct / 100);
-
-  const eqLand = landCapex - debtLand;
-  const eqShell = shellCapex - debtShell;
-  const eqOfci = ofciCapex - debtOfci;
-
-  function cumulativeDrawnDebtAt(yr) {
-    let drawn = 0;
-    if (yr >= 0) {
-      const fracLand = tLandYr > 0 ? Math.min(1, Math.max(0, yr / tLandYr)) : 1;
-      drawn += debtLand * fracLand;
-    }
-    if (yr > tLandYr) {
-      const durShell = Math.max(0.01, tShellYr - tLandYr);
-      const fracShell = Math.min(1, Math.max(0, (yr - tLandYr) / durShell));
-      drawn += debtShell * fracShell;
-    }
-    if (yr > tShellYr) {
-      const durOfci = Math.max(0.01, tOfciYr - tShellYr);
-      const fracOfci = Math.min(1, Math.max(0, (yr - tShellYr) / durOfci));
-      drawn += debtOfci * fracOfci;
-    }
-    return Math.min(totalDebt, drawn);
-  }
-
-  function stageInterestForYear(yrStart, yrEnd, delayExtraYrs) {
-    const s = Math.max(0, yrStart + (delayExtraYrs || 0));
-    const e = Math.max(s, yrEnd + (delayExtraYrs || 0));
-    const midDebt = cumulativeDrawnDebtAt((s + e) / 2);
-    return midDebt * debtRate * (e - s);
-  }
-
-  // Baseline = Merchant/Flip exit 9 months (0.75 yr) after build completion
-  const flipCompletionYr = Math.max(0.25, totalWeeks / 52);
-  const flipExitYr = flipCompletionYr + 0.75;
-  const flipBucket = Math.max(1, Math.min(6, Math.round(flipExitYr)));
-
-  // Bulk OFCI capex efficiency (6% savings on OFCI capex) when committing OFCI upfront
-  const upfrontOfciDiscount = 0.94;
-  const upfrontOfciCapex = ofciCapex * upfrontOfciDiscount;
-  const upfrontDebtOfci = upfrontOfciCapex * (ltcPct / 100);
-  const upfrontEqOfci = upfrontOfciCapex - upfrontDebtOfci;
-  const upfrontTotalCapex = landCapex + shellCapex + upfrontOfciCapex;
-  const upfrontTotalDebt = debtLand + debtShell + upfrontDebtOfci;
-  const upfrontTotalEquity = upfrontTotalCapex - upfrontTotalDebt;
-  const upfrontNetExit = grossExit - upfrontTotalDebt;
-
-  const capexYr0 = eqLand + eqShell * Math.min(1, Math.max(0, (1 - tLandYr) / Math.max(0.01, tShellYr - tLandYr)));
-  const capexYr1 = Math.max(0, totalEquity - capexYr0);
+  const capexYr0 = totalEquity * 0.5;
+  const capexYr1 = totalEquity * 0.5;
   const annualInterest = totalDebt * debtRate;
-  const intYr2 = stageInterestForYear(2, 3, 0);
-  const intYr3 = stageInterestForYear(3, 4, 0);
-  const intYr4 = stageInterestForYear(4, 5, 0);
-  const intYr5 = stageInterestForYear(5, 6, 0);
-  const annualLeveredCash = stabilizedNoi - intYr4;
+  const annualLeveredCash = stabilizedNoi - annualInterest;
 
-  // Baseline 9-month post-completion flip cash flows across Yr 0..6
-  const flipCarryInterest = (cumulativeDrawnDebtAt(flipCompletionYr) * debtRate * flipCompletionYr) +
-    (totalDebt * debtRate * 0.75);
-  const flip9mNoi = stabilizedNoi * 0.75 * 0.65;
-  const flipNetProceeds = flip9mNoi - flipCarryInterest + netExit;
+  const cfBase = [
+    -capexYr0,
+    -capexYr1,
+    stabilizedNoi * 0.35 - annualInterest,
+    stabilizedNoi * 0.75 - annualInterest,
+    annualLeveredCash,
+    annualLeveredCash + netExit,
+    0
+  ];
 
-  const cfBase = [0, 0, 0, 0, 0, 0, 0];
-  cfBase[0] = -Math.min(totalEquity, capexYr0);
-  if (flipBucket >= 2) {
-    cfBase[1] = -Math.max(0, totalEquity - Math.abs(cfBase[0]));
-    cfBase[flipBucket] = flipNetProceeds;
-  } else {
-    cfBase[1] = -(Math.max(0, totalEquity - Math.abs(cfBase[0]))) + flipNetProceeds;
-  }
-
-  // Phased Power + Staged OFCI: defers OFCI capital until power/halls advance (lower early carry, staged ramp)
   const stagedFactor = 0.96 + 0.08 * (landRatio + shellRatio);
-  const stagedEarlyEq = eqLand * 0.85 + eqShell * 0.35;
-  const stagedLateEq = Math.max(0, totalEquity - stagedEarlyEq);
-  const stagedCarryInt = ((debtLand * 0.5 + debtShell * 0.35 + debtOfci * 0.15) * debtRate * (flipExitYr));
-  const stagedNoi = stabilizedNoi * 0.75 * 0.62 * stagedFactor;
-  const stagedExitProceeds = stagedNoi - stagedCarryInt + netExit * 1.01;
-  const cfPhasedStaged = [0, 0, 0, 0, 0, 0, 0];
-  cfPhasedStaged[0] = -stagedEarlyEq;
-  if (flipBucket >= 2) {
-    cfPhasedStaged[1] = -stagedLateEq;
-    cfPhasedStaged[flipBucket] = stagedExitProceeds;
-  } else {
-    cfPhasedStaged[1] = -stagedLateEq + stagedExitProceeds;
-  }
+  const cfPhasedStaged = [
+    -capexYr0 * (0.85 + 0.15 * landRatio),
+    -capexYr1 * (0.90 + 0.10 * shellRatio),
+    stabilizedNoi * 0.45 * stagedFactor - annualInterest,
+    stabilizedNoi * 0.85 * stagedFactor - annualInterest,
+    annualLeveredCash * 1.03,
+    annualLeveredCash * 1.03 + netExit * 1.02,
+    0
+  ];
 
-  // Phased Power (Upfront OFCI): bulk OFCI capex savings + faster early monetization, traded against earlier spend & carry
-  const upfrontEarlyEq = Math.min(upfrontTotalEquity, eqLand + eqShell * 0.75 + upfrontEqOfci * 0.65);
-  const upfrontLateEq = Math.max(0, upfrontTotalEquity - upfrontEarlyEq);
-  const upfrontCarryInt = ((debtLand * 0.6 + debtShell * 0.6 + upfrontDebtOfci * 0.75) * debtRate * flipExitYr);
-  const upfrontFastNoi = stabilizedNoi * 0.75 * 0.85;
-  const upfrontExitProceeds = upfrontFastNoi - upfrontCarryInt + upfrontNetExit;
-  const cfPhasedUpfront = [0, 0, 0, 0, 0, 0, 0];
-  cfPhasedUpfront[0] = -upfrontEarlyEq;
-  if (flipBucket >= 2) {
-    cfPhasedUpfront[1] = -upfrontLateEq;
-    cfPhasedUpfront[flipBucket] = upfrontExitProceeds;
-  } else {
-    cfPhasedUpfront[1] = -upfrontLateEq + upfrontExitProceeds;
-  }
+  const cfPhasedUpfront = [
+    -capexYr0 * (0.95 + 0.05 * ofciRatio),
+    -capexYr1 * (1.0 + 0.05 * ofciRatio),
+    stabilizedNoi * 0.42 - annualInterest,
+    stabilizedNoi * 0.80 - annualInterest,
+    annualLeveredCash,
+    annualLeveredCash + netExit,
+    0
+  ];
 
-  // 12-Mo Grid Delay (Yr 6 Exit): 1-year delay pushes completion and exit out by 12 months
-  const delayExitYr = Math.min(6, flipExitYr + 1.0);
-  const delayBucket = Math.max(2, Math.min(6, Math.round(delayExitYr)));
-  const delayCarryInt = flipCarryInterest + totalDebt * debtRate * 1.0;
-  const delayProceeds = flip9mNoi - delayCarryInt + netExit;
-  const cfDelay = [0, 0, 0, 0, 0, 0, 0];
-  cfDelay[0] = cfBase[0];
-  cfDelay[1] = cfBase[1];
-  cfDelay[delayBucket] = delayProceeds;
+  const cfDelay = [
+    -capexYr0,
+    -capexYr1,
+    -annualInterest,
+    stabilizedNoi * 0.35 - annualInterest,
+    stabilizedNoi * 0.75 - annualInterest,
+    annualLeveredCash,
+    annualLeveredCash + netExit
+  ];
 
   // RFS occurs strictly during the OFCI phase, hall by hall (1..halls),
   // followed by a 9-month (0.75 yr) post-final-RFS operating window prior to exit.
@@ -585,12 +432,7 @@ function update() {
   const ofciRampNoi = computeOfciHallNoi(stabilizedNoi, halls, landWeeks, shellWeeks, ofciWeeks, finalRfsYears);
   const postRfs9mNoi = stabilizedNoi * 0.75;
   const preLeasedNoi = ofciRampNoi + postRfs9mNoi;
-  const avgDrawnDebtPreLeased = (
-    debtLand * Math.min(1, exitYears / Math.max(0.01, tLandYr)) +
-    debtShell * Math.min(1, Math.max(0, exitYears - tLandYr) / Math.max(0.01, tShellYr - tLandYr)) +
-    debtOfci * Math.min(1, Math.max(0, exitYears - tShellYr) / Math.max(0.01, tOfciYr - tShellYr))
-  ) / 3;
-  const preLeasedInterest = avgDrawnDebtPreLeased * debtRate * exitYears;
+  const preLeasedInterest = totalDebt * debtRate * (finalRfsYears + 0.75);
   const preLeasedNetProceeds = preLeasedNoi - preLeasedInterest + netExit;
   const irrPreLeased = computeTimedIRR([
     [0, cfBase[0]],
@@ -602,26 +444,10 @@ function update() {
   const cfPreLeased = [cfBase[0], cfBase[1], 0, 0, 0, 0, 0];
   cfPreLeased[exitBucket] = preLeasedNetProceeds;
 
-  const irrBase = computeTimedIRR([
-    [0, cfBase[0]],
-    [1, cfBase[1]],
-    [flipExitYr, flipNetProceeds]
-  ]) * 100;
-  const irrStaged = computeTimedIRR([
-    [0, cfPhasedStaged[0]],
-    [1, cfPhasedStaged[1]],
-    [flipExitYr, stagedExitProceeds]
-  ]) * 100;
-  const irrUpfront = computeTimedIRR([
-    [0, cfPhasedUpfront[0]],
-    [1, cfPhasedUpfront[1]],
-    [flipExitYr, upfrontExitProceeds]
-  ]) * 100;
-  const irrDelay = computeTimedIRR([
-    [0, cfDelay[0]],
-    [1, cfDelay[1]],
-    [delayExitYr, delayProceeds]
-  ]) * 100;
+  const irrBase = computeTimedIRR(cfBase.slice(0, 6).map(function(v, idx) { return [idx, v]; })) * 100;
+  const irrStaged = computeTimedIRR(cfPhasedStaged.slice(0, 6).map(function(v, idx) { return [idx, v]; })) * 100;
+  const irrUpfront = computeTimedIRR(cfPhasedUpfront.slice(0, 6).map(function(v, idx) { return [idx, v]; })) * 100;
+  const irrDelay = computeTimedIRR(cfDelay.map(function(v, idx) { return [idx, v]; })) * 100;
 
   setText("kpiIrrPreLeased", isFinite(irrPreLeased) ? irrPreLeased.toFixed(1) + "%" : "N/A");
   setText("kpiExitTiming", "OFCI RFS (" + halls + " halls) + 9m · ~" + exitYears.toFixed(2) + " yrs");
@@ -635,193 +461,54 @@ function update() {
     initBaselineIrrChart();
   }
   const irrGateYr = Math.max(2, Math.min(6, Math.ceil(totalWeeks / 52)));
-  const irrOverTime = [];
-  for (let q = 0; q <= 24; q++) {
-    const tYr = q / 4;
-    if (tYr < irrGateYr || tYr > flipExitYr + 1e-6) {
-      irrOverTime.push(null);
-      continue;
-    }
-    const fullYrs = Math.floor(tYr);
-    const fracYr = tYr - fullYrs;
+  const irrOverTime = cfBase.map(function(cfVal, yr) {
+    if (yr < irrGateYr) return null;
     const windowCfs = [];
-    for (let i = 0; i <= Math.min(6, fullYrs); i++) {
-      let amt = cfBase[i] || 0;
-      if (i === fullYrs && fracYr > 0) {
-        const nextCf = cfBase[i + 1] || 0;
-        amt = amt + (nextCf - amt) * fracYr;
-      }
-      if (i === Math.min(6, fullYrs)) {
-        if (Math.abs(tYr - 5) < 1e-6) {
+    for (let i = 0; i <= yr; i++) {
+      let amt = cfBase[i];
+      if (i === yr) {
+        if (yr === 5) {
           amt = cfBase[5];
-        } else if (Math.abs(tYr - 6) < 1e-6) {
+        } else if (yr === 6) {
           amt = cfBase[5] + cfBase[6];
-        } else if (tYr < 5) {
-          const rampFactor = tYr <= 2 ? 0.35 : tYr <= 3 ? 0.35 + (tYr - 2) * 0.40 : 0.75 + (tYr - 3) * 0.25;
-          const opCash = stabilizedNoi * rampFactor - annualInterest * Math.min(1, tYr / 2);
-          amt = opCash + netExit;
         } else {
-          amt = cfBase[5] + (cfBase[6] || 0) * ((tYr - 5) / 1);
+          const opCash = stabilizedNoi * (yr === 2 ? 0.35 : yr === 3 ? 0.75 : 1.0) - annualInterest;
+          amt = opCash + netExit;
         }
       }
-      windowCfs.push([i === Math.min(6, fullYrs) ? tYr : i, amt]);
+      windowCfs.push([i, amt]);
     }
     const hasNeg = windowCfs.some(function(p) { return p[1] < 0; });
     const hasPos = windowCfs.some(function(p) { return p[1] > 0; });
-    if (!hasNeg || !hasPos) {
-      irrOverTime.push(null);
-      continue;
-    }
+    if (!hasNeg || !hasPos) return null;
     const r = computeTimedIRR(windowCfs);
-    irrOverTime.push(isFinite(r) ? +(r * 100).toFixed(1) : null);
-  }
+    return isFinite(r) ? +(r * 100).toFixed(1) : null;
+  });
 
   if (baselineIrrChart && baselineIrrChart.data && Array.isArray(baselineIrrChart.data.datasets)) {
     if (baselineIrrChart.data.datasets[0]) baselineIrrChart.data.datasets[0].data = irrOverTime;
     if (baselineIrrChart.data.datasets[1]) baselineIrrChart.data.datasets[1].data = [];
     baselineIrrChart.update("none");
   }
-  const lastValidIrrIdx = irrOverTime.reduce(function(acc, val, idx) { return val !== null ? idx : acc; }, -1);
-  const exitIrrLabel = lastValidIrrIdx >= 0 ? irrOverTime[lastValidIrrIdx].toFixed(1) + "%" : "N/A";
   setText(
     "baselineIrrTrajectoryNote",
-    "16% Hurdle · Flip Exit (~" + flipExitYr.toFixed(2) + " yrs) IRR: " + (isFinite(irrBase) ? irrBase.toFixed(1) + "%" : "N/A") + " · Last Plotted: " + exitIrrLabel
+    "16% Hurdle · Yr 5 IRR: " + (isFinite(irrBase) ? irrBase.toFixed(1) + "%" : "N/A") + " · Yr 6 Exit: " + (irrOverTime[6] !== null ? irrOverTime[6].toFixed(1) + "%" : "N/A")
   );
 
   if (cashChart && cashChart.data && Array.isArray(cashChart.data.datasets)) {
-    const buildMonthlyCumulative = function(cfg) {
-      const out = [];
-      let cum = 0;
-      const exitYr = cfg.exitYr;
-      const delayShift = cfg.delayShift || 0;
-      const noiMult = cfg.noiMult || 1;
-      const exitMult = cfg.exitMult || 1;
-      const eqMult = cfg.eqMult || 1;
-      const eqLandShare = cfg.eqLandShare !== undefined ? cfg.eqLandShare : 0.45;
-      const eqShellShare = cfg.eqShellShare !== undefined ? cfg.eqShellShare : 0.35;
-      const eqOfciShare = cfg.eqOfciShare !== undefined ? cfg.eqOfciShare : 0.20;
-
-      const stageEqLand = totalEquity * eqMult * eqLandShare;
-      const stageEqShell = totalEquity * eqMult * eqShellShare;
-      const stageEqOfci = totalEquity * eqMult * eqOfciShare;
-
-      const mLand = Math.max(1, Math.round(landWeeks / (52 / 12)));
-      const mShell = Math.max(1, Math.round(shellWeeks / (52 / 12)));
-      const mOfci = Math.max(1, Math.round(ofciWeeks / (52 / 12)));
-      const mBuildEnd = Math.min(72, mLand + mShell + mOfci);
-
-      for (let m = 0; m <= 72; m++) {
-        const tPrev = Math.max(0, (m - 1) / 12);
-        const tCurr = m / 12;
-
-        // End the trajectory once sold (no post-exit points)
-        if (exitYr !== null && tPrev > exitYr + 1e-6) {
-          out.push(null);
-          continue;
-        }
-
-        let stepCf = 0;
-
-        if (m > 0) {
-          // Monthly equity draws across Land & Power -> Shell & Core -> OFCI
-          if (m <= mLand) {
-            stepCf -= stageEqLand / mLand;
-          } else if (m <= mLand + mShell) {
-            stepCf -= stageEqShell / mShell;
-          } else if (m <= mBuildEnd) {
-            stepCf -= stageEqOfci / mOfci;
-          }
-
-          // Monthly interest on sequential cumulative drawn debt (shifted if delayed)
-          const midYrEff = Math.max(0, ((tPrev + tCurr) / 2) - delayShift);
-          const drawnDebt = cumulativeDrawnDebtAt(midYrEff);
-          stepCf -= (drawnDebt * debtRate) / 12;
-
-          // Monthly operating NOI once past build/delay up to sale
-          const activeToYr = exitYr !== null ? Math.min(tCurr, exitYr) : tCurr;
-          if (activeToYr > tPrev) {
-            const activeFrac = activeToYr - tPrev;
-            if (cfg.isPreLeased) {
-              const rfsStartYr = Math.max(0, tOfciYr - (ofciWeeks / 52));
-              if (activeToYr > rfsStartYr) {
-                const ofciProgress = ofciWeeks > 0 ? Math.min(1, Math.max(0, (activeToYr - rfsStartYr) / (ofciWeeks / 52))) : 1;
-                const hallFactor = activeToYr <= tOfciYr ? (0.25 + 0.75 * ofciProgress) : 1.0;
-                stepCf += stabilizedNoi * hallFactor * activeFrac;
-              }
-            } else {
-              const effOpYr = activeToYr - delayShift;
-              if (effOpYr > 1.5) {
-                let ramp = 0;
-                if (effOpYr <= 2.5) ramp = 0.35;
-                else if (effOpYr <= 3.5) ramp = 0.75;
-                else ramp = 1.0;
-                stepCf += stabilizedNoi * ramp * noiMult * activeFrac;
-              }
-            }
-          }
-        }
-
-        // Terminal net exit proceeds when reaching/crossing exitYr
-        if (exitYr !== null && tCurr >= exitYr - 1e-6 && tPrev <= exitYr + 1e-6) {
-          stepCf += netExit * exitMult;
-        }
-
-        cum += stepCf;
-        out.push(+cum.toFixed(2));
-      }
-      return out;
-    };
-
     const ds = cashChart.data.datasets;
-    if (ds[0]) {
-      ds[0].data = buildMonthlyCumulative({
-        exitYr: Math.min(6, flipExitYr),
-        noiMult: 0.65,
-        exitMult: 1.0,
-        eqLandShare: 0.45,
-        eqShellShare: 0.35,
-        eqOfciShare: 0.20
-      });
-    }
-    if (ds[1]) {
-      ds[1].data = buildMonthlyCumulative({
-        exitYr: Math.min(6, flipExitYr),
-        noiMult: 0.62 * stagedFactor,
-        exitMult: 1.01,
-        eqMult: 1.0,
-        eqLandShare: 0.40,
-        eqShellShare: 0.35,
-        eqOfciShare: 0.25
-      });
-    }
-    if (ds[2]) {
-      ds[2].data = buildMonthlyCumulative({
-        exitYr: Math.min(6, flipExitYr),
-        noiMult: 0.85,
-        exitMult: upfrontTotalCapex > 0 ? (upfrontNetExit / Math.max(0.01, netExit)) : 1.0,
-        eqMult: totalEquity > 0 ? (upfrontTotalEquity / totalEquity) : 1.0,
-        eqLandShare: 0.42,
-        eqShellShare: 0.33,
-        eqOfciShare: 0.25
-      });
-    }
-    if (ds[3]) {
-      ds[3].data = buildMonthlyCumulative({
-        exitYr: Math.min(6, exitYears),
-        isPreLeased: true,
-        exitMult: 1.0,
-        eqLandShare: 0.45,
-        eqShellShare: 0.35,
-        eqOfciShare: 0.20
-      });
-    }
+    if (ds[0]) ds[0].data = cumulative(cfBase);
+    if (ds[1]) ds[1].data = cumulative(cfPhasedStaged);
+    if (ds[2]) ds[2].data = cumulative(cfPhasedUpfront);
+    if (ds[3]) ds[3].data = cumulative(cfDelay);
+    if (ds[4]) ds[4].data = cumulative(cfPreLeased);
     cashChart.update("none");
   }
 
   const tbody = byId("ledgerBody") || document.querySelector("#ledgerTable tbody") || document.querySelector("table tbody");
   if (tbody) {
     const rows = [
-      { name: "Baseline (9-Mo Post-Build Flip)", cf: cfBase, irr: irrBase },
+      { name: "Baseline (On-Time, Yr 5 Exit)", cf: cfBase, irr: irrBase },
       { name: "Phased Power + Staged OFCI", cf: cfPhasedStaged, irr: irrStaged },
       { name: "Phased Power (Upfront OFCI)", cf: cfPhasedUpfront, irr: irrUpfront },
       { name: "12-Mo Grid Delay (Yr 6 Exit)", cf: cfDelay, irr: irrDelay },
