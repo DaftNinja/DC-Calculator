@@ -8,7 +8,7 @@ const DEFAULTS = {
   ofciWeeks: 38,
   ltc: 60,
   debtRate: 0,
-  exitCap: 5.5
+  yocInput: 9.20
 };
 
 const els = {
@@ -20,7 +20,7 @@ const els = {
   ofciWeeks: document.getElementById("ofciWeeks"),
   ltc: document.getElementById("ltc"),
   debtRate: document.getElementById("debtRate"),
-  exitCap: document.getElementById("exitCap")
+  yocInput: document.getElementById("yocInput")
 };
 
 function computeTimedIRR(timedCfs) {
@@ -83,7 +83,9 @@ function update() {
   const ofciWeeks = +els.ofciWeeks.value;
   const ltc = +els.ltc.value / 100;
   const debtRate = +els.debtRate.value / 100;
-  const exitCap = +els.exitCap.value / 100;
+  const yoc = +els.yocInput.value;
+  const yocRatio = yoc / 100;
+  const exitCap = 0.055;
 
   const totalMw = halls * GRD_MW;
   const totalCapex = totalMw * costPerMw;
@@ -91,8 +93,8 @@ function update() {
   const totalEquity = totalCapex - totalDebt;
   const annualDebtService = totalDebt * debtRate;
   const stabilizedNoi = totalMw * rentPerMw * 0.012;
-  const yoc = (stabilizedNoi / totalCapex) * 100;
-  const grossExit = stabilizedNoi / exitCap;
+  // Yield on Cost driven directly by yocInput slider
+  const grossExit = (totalCapex * yocRatio) / exitCap;
   const netExit = grossExit - totalDebt;
 
   const totalWeeks = landWeeks + shellWeeks + ofciWeeks;
@@ -107,7 +109,7 @@ function update() {
   document.getElementById("valOfciWeeks").textContent = `${ofciWeeks} wks`;
   document.getElementById("valLtc").textContent = `${(ltc * 100).toFixed(0)}%`;
   document.getElementById("valDebtRate").textContent = `${(debtRate * 100).toFixed(2)}%`;
-  document.getElementById("valExitCap").textContent = `${(exitCap * 100).toFixed(2)}%`;
+  document.getElementById("valYoc").textContent = `${yoc.toFixed(2)}%`;
   document.getElementById("headerSummary").textContent = `${halls} Halls · ${totalMw.toFixed(1)} MW · £${totalCapex.toFixed(1)}M Capex`;
 
   const landShellShare = (landWeeks + shellWeeks) / totalWeeks;
