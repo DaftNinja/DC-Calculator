@@ -2,7 +2,7 @@ const GRD_MW = 4.5;
 const DEFAULTS = {
   halls: 7,
   costPerMw: 14.67,
-  rentPerMw: 1.35,
+  rentPerMw: 112.5,
   landWeeks: 26,
   shellWeeks: 40,
   ofciWeeks: 38,
@@ -92,7 +92,7 @@ function update() {
   const totalDebt = totalCapex * ltc;
   const totalEquity = totalCapex - totalDebt;
   const annualDebtService = totalDebt * debtRate;
-  const stabilizedNoi = totalMw * rentPerMw;
+  const stabilizedNoi = totalMw * rentPerMw * 0.012;
   const yoc = (stabilizedNoi / totalCapex) * 100;
   const grossExit = stabilizedNoi / exitCap;
   const netExit = grossExit - totalDebt;
@@ -103,7 +103,7 @@ function update() {
 
   document.getElementById("valHalls").textContent = `${halls} ${halls === 1 ? "hall" : "halls"} (${totalMw.toFixed(1)} MW)`;
   document.getElementById("valCostPerMw").textContent = `£${costPerMw.toFixed(2)}M/MW`;
-  document.getElementById("valRentPerMw").textContent = `£${rentPerMw.toFixed(2)}M/MW/yr`;
+  document.getElementById("valRentPerMw").textContent = `£${rentPerMw.toFixed(2)}/kW/mo`;
   document.getElementById("valLandWeeks").textContent = `${landWeeks} wks`;
   document.getElementById("valShellWeeks").textContent = `${shellWeeks} wks`;
   document.getElementById("valOfciWeeks").textContent = `${ofciWeeks} wks`;
