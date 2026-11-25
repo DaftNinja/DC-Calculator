@@ -216,6 +216,24 @@ function initBaselineIrrChart() {
   if (baselineIrrChart && typeof baselineIrrChart.destroy === "function") {
     baselineIrrChart.destroy();
   }
+  const hurdle16LinePlugin = {
+    id: "hurdle16LinePlugin",
+    afterDatasetsDraw(chart) {
+      const { ctx, chartArea, scales } = chart;
+      if (!chartArea || !scales || !scales.y) return;
+      const y16 = scales.y.getPixelForValue(16);
+      if (!isFinite(y16)) return;
+      ctx.save();
+      ctx.beginPath();
+      ctx.setLineDash([5, 5]);
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "#ef4444";
+      ctx.moveTo(chartArea.left, y16);
+      ctx.lineTo(chartArea.right, y16);
+      ctx.stroke();
+      ctx.restore();
+    }
+  };
   const ctx = canvas.getContext("2d");
   baselineIrrChart = new Chart(ctx, {
     type: "line",
@@ -227,27 +245,25 @@ function initBaselineIrrChart() {
           data: [],
           borderColor: "#38bdf8",
           backgroundColor: "rgba(56,189,248,0.14)",
-          fill: false,
+          fill: true,
           tension: 0.25,
           borderWidth: 2.5,
           pointRadius: 4,
-          spanGaps: false,
-          yAxisID: "y"
+          spanGaps: false
         },
         {
-          label: "16% Hurdle / Breakeven",
-          data: [16, 16, 16, 16, 16, 16, 16],
+          label: "16% Hurdle",
+          data: [],
           borderColor: "#ef4444",
-          backgroundColor: "transparent",
+          backgroundColor: "#ef4444",
           borderDash: [5, 5],
           borderWidth: 2,
           pointRadius: 0,
-          fill: false,
-          tension: 0,
-          yAxisID: "y"
+          fill: false
         }
       ]
     },
+    plugins: [hurdle16LinePlugin],
     options: {
       responsive: true,
       maintainAspectRatio: false,
@@ -258,7 +274,6 @@ function initBaselineIrrChart() {
       scales: {
         x: { stacked: false, ticks: { color: "#94a3b8" }, grid: { color: "rgba(148,163,184,0.12)" } },
         y: {
-          id: "y",
           stacked: false,
           ticks: {
             color: "#94a3b8",
@@ -470,7 +485,7 @@ function update() {
   });
   if (baselineIrrChart && baselineIrrChart.data && Array.isArray(baselineIrrChart.data.datasets)) {
     if (baselineIrrChart.data.datasets[0]) baselineIrrChart.data.datasets[0].data = irrOverTime;
-    if (baselineIrrChart.data.datasets[1]) baselineIrrChart.data.datasets[1].data = [16, 16, 16, 16, 16, 16, 16];
+    if (baselineIrrChart.data.datasets[1]) baselineIrrChart.data.datasets[1].data = [];
     baselineIrrChart.update("none");
   }
   setText(
