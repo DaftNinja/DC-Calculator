@@ -164,6 +164,30 @@ function numVal(id, fallback) {
   return el ? +el.value : fallback;
 }
 
+function computeOfciHallNoi(totalNoi, hallCount, landWks, shellWks, ofciWks, horizonYears) {
+  const nHalls = Math.max(1, Math.round(hallCount));
+  const ofciStart = Math.max(0, (landWks + shellWks) / 52);
+  const ofciSpan = Math.max(0.05, ofciWks / 52);
+  const perHallNoi = totalNoi / nHalls;
+
+  // Integrate hall-by-hall NOI across [0, horizonYears]: hall k (1..nHalls) comes live at ofciStart + (k / nHalls) * ofciSpan
+  const steps = 200;
+  const dt = horizonYears / steps;
+  let totalEarned = 0;
+
+  for (let i = 0; i < steps; i++) {
+    const tMid = (i + 0.5) * dt;
+    if (tMid <= ofciStart) continue;
+    let activeHalls = 0;
+    for (let k = 1; k <= nHalls; k++) {
+      const hallRfsTime = ofciStart + (k / nHalls) * ofciSpan;
+      if (tMid >= hallRfsTime) activeHalls += 1;
+    }
+    totalEarned += activeHalls * perHallNoi * dt;
+  }
+  return totalEarned;
+}
+
 function update() {
   const grdMw = numVal("grdMw", DEFAULTS.grdMw);
   const halls = numVal("halls", DEFAULTS.halls);
@@ -303,10 +327,14 @@ function update() {
     annualLeveredCash + netExit
   ];
 
-  const rfsYears = Math.max(0.5, totalWeeks / 52);
-  const exitYears = rfsYears + 0.75;
-  const preLeasedNoi = stabilizedNoi * 0.75;
-  const preLeasedInterest = totalDebt * debtRate * 0.75;
+  // RFS occurs strictly during the OFCI phase, hall by hall (1..halls),
+  // followed by a 9-month (0.75 yr) post-final-RFS operating window prior to exit.
+  const finalRfsYears = Math.max(0.25, totalWeeks / 52);
+  const exitYears = finalRfsYears + 0.75;
+  const ofciRampNoi = computeOfciHallNoi(stabilizedNoi, halls, landWeeks, shellWeeks, ofciWeeks, finalRfsYears);
+  const postRfs9mNoi = stabilizedNoi * 0.75;
+  const preLeasedNoi = ofciRampNoi + postRfs9mNoi;
+  const preLeasedInterest = totalDebt * debtRate * (finalRfsYears + 0.75);
   const preLeasedNetProceeds = preLeasedNoi - preLeasedInterest + netExit;
   const irrPreLeased = computeTimedIRR([
     [0, cfBase[0]],
@@ -324,7 +352,7 @@ function update() {
   const irrDelay = computeTimedIRR(cfDelay.map(function(v, idx) { return [idx, v]; })) * 100;
 
   setText("kpiIrrPreLeased", isFinite(irrPreLeased) ? irrPreLeased.toFixed(1) + "%" : "N/A");
-  setText("kpiExitTiming", "Exit ~" + exitYears.toFixed(2) + " yrs");
+  setText("kpiExitTiming", "OFCI RFS (" + halls + " halls) + 9m · ~" + exitYears.toFixed(2) + " yrs");
   setText("kpiIrrBase", isFinite(irrBase) ? irrBase.toFixed(1) + "%" : "N/A");
   setText("kpiIrrStaged", isFinite(irrStaged) ? "Staged OFCI IRR: " + irrStaged.toFixed(1) + "%" : "Staged OFCI IRR: N/A");
   setText("kpiIrrDelay", isFinite(irrDelay) ? irrDelay.toFixed(1) + "%" : "N/A");
