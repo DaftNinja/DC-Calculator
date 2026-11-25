@@ -227,11 +227,12 @@ function initBaselineIrrChart() {
           data: [],
           borderColor: "#38bdf8",
           backgroundColor: "rgba(56,189,248,0.14)",
-          fill: true,
+          fill: false,
           tension: 0.25,
           borderWidth: 2.5,
           pointRadius: 4,
-          spanGaps: false
+          spanGaps: false,
+          yAxisID: "y"
         },
         {
           label: "16% Hurdle / Breakeven",
@@ -241,7 +242,9 @@ function initBaselineIrrChart() {
           borderDash: [5, 5],
           borderWidth: 2,
           pointRadius: 0,
-          fill: false
+          fill: false,
+          tension: 0,
+          yAxisID: "y"
         }
       ]
     },
@@ -253,8 +256,10 @@ function initBaselineIrrChart() {
         legend: { labels: { color: "#cbd5e1", boxWidth: 14 } }
       },
       scales: {
-        x: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(148,163,184,0.12)" } },
+        x: { stacked: false, ticks: { color: "#94a3b8" }, grid: { color: "rgba(148,163,184,0.12)" } },
         y: {
+          id: "y",
+          stacked: false,
           ticks: {
             color: "#94a3b8",
             callback: function(v) { return v + "%"; }
