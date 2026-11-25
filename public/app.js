@@ -499,6 +499,21 @@ function update() {
     return midDebt * debtRate * (e - s);
   }
 
+  // Baseline = Merchant/Flip exit 9 months (0.75 yr) after build completion
+  const flipCompletionYr = Math.max(0.25, totalWeeks / 52);
+  const flipExitYr = flipCompletionYr + 0.75;
+  const flipBucket = Math.max(1, Math.min(6, Math.round(flipExitYr)));
+
+  // Bulk OFCI capex efficiency (6% savings on OFCI capex) when committing OFCI upfront
+  const upfrontOfciDiscount = 0.94;
+  const upfrontOfciCapex = ofciCapex * upfrontOfciDiscount;
+  const upfrontDebtOfci = upfrontOfciCapex * (ltcPct / 100);
+  const upfrontEqOfci = upfrontOfciCapex - upfrontDebtOfci;
+  const upfrontTotalCapex = landCapex + shellCapex + upfrontOfciCapex;
+  const upfrontTotalDebt = debtLand + debtShell + upfrontDebtOfci;
+  const upfrontTotalEquity = upfrontTotalCapex - upfrontTotalDebt;
+  const upfrontNetExit = grossExit - upfrontTotalDebt;
+
   const capexYr0 = eqLand + eqShell * Math.min(1, Math.max(0, (1 - tLandYr) / Math.max(0.01, tShellYr - tLandYr)));
   const capexYr1 = Math.max(0, totalEquity - capexYr0);
   const annualInterest = totalDebt * debtRate;
@@ -508,46 +523,61 @@ function update() {
   const intYr5 = stageInterestForYear(5, 6, 0);
   const annualLeveredCash = stabilizedNoi - intYr4;
 
-  const cfBase = [
-    -capexYr0,
-    -capexYr1,
-    stabilizedNoi * 0.35 - intYr2,
-    stabilizedNoi * 0.75 - intYr3,
-    stabilizedNoi - intYr4,
-    stabilizedNoi - intYr5 + netExit,
-    0
-  ];
+  // Baseline 9-month post-completion flip cash flows across Yr 0..6
+  const flipCarryInterest = (cumulativeDrawnDebtAt(flipCompletionYr) * debtRate * flipCompletionYr) +
+    (totalDebt * debtRate * 0.75);
+  const flip9mNoi = stabilizedNoi * 0.75 * 0.65;
+  const flipNetProceeds = flip9mNoi - flipCarryInterest + netExit;
 
+  const cfBase = [0, 0, 0, 0, 0, 0, 0];
+  cfBase[0] = -Math.min(totalEquity, capexYr0);
+  if (flipBucket >= 2) {
+    cfBase[1] = -Math.max(0, totalEquity - Math.abs(cfBase[0]));
+    cfBase[flipBucket] = flipNetProceeds;
+  } else {
+    cfBase[1] = -(Math.max(0, totalEquity - Math.abs(cfBase[0]))) + flipNetProceeds;
+  }
+
+  // Phased Power + Staged OFCI: defers OFCI capital until power/halls advance (lower early carry, staged ramp)
   const stagedFactor = 0.96 + 0.08 * (landRatio + shellRatio);
-  const cfPhasedStaged = [
-    -(eqLand * 0.9 + eqShell * 0.5),
-    -(totalEquity - (eqLand * 0.9 + eqShell * 0.5)),
-    stabilizedNoi * 0.45 * stagedFactor - intYr2,
-    stabilizedNoi * 0.85 * stagedFactor - intYr3,
-    stabilizedNoi * 1.03 - intYr4,
-    stabilizedNoi * 1.03 - intYr5 + netExit * 1.02,
-    0
-  ];
+  const stagedEarlyEq = eqLand * 0.85 + eqShell * 0.35;
+  const stagedLateEq = Math.max(0, totalEquity - stagedEarlyEq);
+  const stagedCarryInt = ((debtLand * 0.5 + debtShell * 0.35 + debtOfci * 0.15) * debtRate * (flipExitYr));
+  const stagedNoi = stabilizedNoi * 0.75 * 0.62 * stagedFactor;
+  const stagedExitProceeds = stagedNoi - stagedCarryInt + netExit * 1.01;
+  const cfPhasedStaged = [0, 0, 0, 0, 0, 0, 0];
+  cfPhasedStaged[0] = -stagedEarlyEq;
+  if (flipBucket >= 2) {
+    cfPhasedStaged[1] = -stagedLateEq;
+    cfPhasedStaged[flipBucket] = stagedExitProceeds;
+  } else {
+    cfPhasedStaged[1] = -stagedLateEq + stagedExitProceeds;
+  }
 
-  const cfPhasedUpfront = [
-    -(eqLand + eqShell * 0.75 + eqOfci * 0.25),
-    -(totalEquity - (eqLand + eqShell * 0.75 + eqOfci * 0.25)),
-    stabilizedNoi * 0.42 - intYr2,
-    stabilizedNoi * 0.80 - intYr3,
-    stabilizedNoi - intYr4,
-    stabilizedNoi - intYr5 + netExit,
-    0
-  ];
+  // Phased Power (Upfront OFCI): bulk OFCI capex savings + faster early monetization, traded against earlier spend & carry
+  const upfrontEarlyEq = Math.min(upfrontTotalEquity, eqLand + eqShell * 0.75 + upfrontEqOfci * 0.65);
+  const upfrontLateEq = Math.max(0, upfrontTotalEquity - upfrontEarlyEq);
+  const upfrontCarryInt = ((debtLand * 0.6 + debtShell * 0.6 + upfrontDebtOfci * 0.75) * debtRate * flipExitYr);
+  const upfrontFastNoi = stabilizedNoi * 0.75 * 0.85;
+  const upfrontExitProceeds = upfrontFastNoi - upfrontCarryInt + upfrontNetExit;
+  const cfPhasedUpfront = [0, 0, 0, 0, 0, 0, 0];
+  cfPhasedUpfront[0] = -upfrontEarlyEq;
+  if (flipBucket >= 2) {
+    cfPhasedUpfront[1] = -upfrontLateEq;
+    cfPhasedUpfront[flipBucket] = upfrontExitProceeds;
+  } else {
+    cfPhasedUpfront[1] = -upfrontLateEq + upfrontExitProceeds;
+  }
 
-  const cfDelay = [
-    -capexYr0,
-    -capexYr1,
-    -stageInterestForYear(2, 3, 1),
-    stabilizedNoi * 0.35 - stageInterestForYear(3, 4, 1),
-    stabilizedNoi * 0.75 - stageInterestForYear(4, 5, 1),
-    stabilizedNoi - stageInterestForYear(5, 6, 1),
-    stabilizedNoi - stageInterestForYear(6, 7, 1) + netExit
-  ];
+  // 12-Mo Grid Delay (Yr 6 Exit): 1-year delay pushes completion and exit out by 12 months
+  const delayExitYr = Math.min(6, flipExitYr + 1.0);
+  const delayBucket = Math.max(2, Math.min(6, Math.round(delayExitYr)));
+  const delayCarryInt = flipCarryInterest + totalDebt * debtRate * 1.0;
+  const delayProceeds = flip9mNoi - delayCarryInt + netExit;
+  const cfDelay = [0, 0, 0, 0, 0, 0, 0];
+  cfDelay[0] = cfBase[0];
+  cfDelay[1] = cfBase[1];
+  cfDelay[delayBucket] = delayProceeds;
 
   // RFS occurs strictly during the OFCI phase, hall by hall (1..halls),
   // followed by a 9-month (0.75 yr) post-final-RFS operating window prior to exit.
@@ -573,10 +603,26 @@ function update() {
   const cfPreLeased = [cfBase[0], cfBase[1], 0, 0, 0, 0, 0];
   cfPreLeased[exitBucket] = preLeasedNetProceeds;
 
-  const irrBase = computeTimedIRR(cfBase.slice(0, 6).map(function(v, idx) { return [idx, v]; })) * 100;
-  const irrStaged = computeTimedIRR(cfPhasedStaged.slice(0, 6).map(function(v, idx) { return [idx, v]; })) * 100;
-  const irrUpfront = computeTimedIRR(cfPhasedUpfront.slice(0, 6).map(function(v, idx) { return [idx, v]; })) * 100;
-  const irrDelay = computeTimedIRR(cfDelay.map(function(v, idx) { return [idx, v]; })) * 100;
+  const irrBase = computeTimedIRR([
+    [0, cfBase[0]],
+    [1, cfBase[1]],
+    [flipExitYr, flipNetProceeds]
+  ]) * 100;
+  const irrStaged = computeTimedIRR([
+    [0, cfPhasedStaged[0]],
+    [1, cfPhasedStaged[1]],
+    [flipExitYr, stagedExitProceeds]
+  ]) * 100;
+  const irrUpfront = computeTimedIRR([
+    [0, cfPhasedUpfront[0]],
+    [1, cfPhasedUpfront[1]],
+    [flipExitYr, upfrontExitProceeds]
+  ]) * 100;
+  const irrDelay = computeTimedIRR([
+    [0, cfDelay[0]],
+    [1, cfDelay[1]],
+    [delayExitYr, delayProceeds]
+  ]) * 100;
 
   setText("kpiIrrPreLeased", isFinite(irrPreLeased) ? irrPreLeased.toFixed(1) + "%" : "N/A");
   setText("kpiExitTiming", "OFCI RFS (" + halls + " halls) + 9m · ~" + exitYears.toFixed(2) + " yrs");
@@ -717,8 +763,8 @@ function update() {
     const ds = cashChart.data.datasets;
     if (ds[0]) {
       ds[0].data = buildMonthlyCumulative({
-        exitYr: 5,
-        noiMult: 1.0,
+        exitYr: Math.min(6, flipExitYr),
+        noiMult: 0.65,
         exitMult: 1.0,
         eqLandShare: 0.45,
         eqShellShare: 0.35,
@@ -727,10 +773,10 @@ function update() {
     }
     if (ds[1]) {
       ds[1].data = buildMonthlyCumulative({
-        exitYr: 5,
-        noiMult: 1.03 * stagedFactor,
-        exitMult: 1.02,
-        eqMult: 0.98,
+        exitYr: Math.min(6, flipExitYr),
+        noiMult: 0.62 * stagedFactor,
+        exitMult: 1.01,
+        eqMult: 1.0,
         eqLandShare: 0.40,
         eqShellShare: 0.35,
         eqOfciShare: 0.25
@@ -738,10 +784,10 @@ function update() {
     }
     if (ds[2]) {
       ds[2].data = buildMonthlyCumulative({
-        exitYr: 5,
-        noiMult: 0.98,
-        exitMult: 1.0,
-        eqMult: 1.02,
+        exitYr: Math.min(6, flipExitYr),
+        noiMult: 0.85,
+        exitMult: upfrontTotalCapex > 0 ? (upfrontNetExit / Math.max(0.01, netExit)) : 1.0,
+        eqMult: totalEquity > 0 ? (upfrontTotalEquity / totalEquity) : 1.0,
         eqLandShare: 0.42,
         eqShellShare: 0.33,
         eqOfciShare: 0.25
@@ -774,7 +820,7 @@ function update() {
   const tbody = byId("ledgerBody") || document.querySelector("#ledgerTable tbody") || document.querySelector("table tbody");
   if (tbody) {
     const rows = [
-      { name: "Baseline (On-Time, Yr 5 Exit)", cf: cfBase, irr: irrBase },
+      { name: "Baseline (9-Mo Post-Build Flip)", cf: cfBase, irr: irrBase },
       { name: "Phased Power + Staged OFCI", cf: cfPhasedStaged, irr: irrStaged },
       { name: "Phased Power (Upfront OFCI)", cf: cfPhasedUpfront, irr: irrUpfront },
       { name: "12-Mo Grid Delay (Yr 6 Exit)", cf: cfDelay, irr: irrDelay },
