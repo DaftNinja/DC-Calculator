@@ -1,6 +1,6 @@
 const DEFAULTS = {
-  grdMw: 4.5,
-  halls: 7,
+  grdMw: 2.5,
+  halls: 4,
   costPerMw: 14.67,
   rentPerMw: 112.5,
   landWeeks: 26,
