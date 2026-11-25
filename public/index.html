@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>4.5 MW GRD Data Centre IRR & Cash Flow Explorer</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --panel-alt: #273549;
+      --border: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --green: #34d399;
+      --red: #f87171;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 24px;
+    }
+    .container { max-width: 1400px; margin: 0 auto; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 16px;
+    }
+    h1 { font-size: 1.5rem; font-weight: 700; }
+    .subtitle { color: var(--muted); font-size: 0.9rem; margin-top: 4px; }
+    .badge {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+    @media (max-width: 1024px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .card h2 {
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+    .slider-group { margin-bottom: 14px; }
+    .slider-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.88rem;
+      margin-bottom: 5px;
+    }
+    .slider-val { font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+    .divider { height: 1px; background: var(--border); margin: 16px 0; }
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+    .kpi {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .kpi-label { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; }
+    .kpi-value { font-size: 1.35rem; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+    .kpi-sub { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+    .chart-wrap { position: relative; height: 360px; width: 100%; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+      font-size: 0.85rem;
+      font-variant-numeric: tabular-nums;
+    }
+    th, td { padding: 10px 12px; text-align: right; border-bottom: 1px solid var(--border); }
+    th:first-child, td:first-child { text-align: left; }
+    th { color: var(--muted); font-weight: 600; background: var(--panel-alt); }
+    .pos { color: var(--green); }
+    .neg { color: var(--red); }
+    .btn-reset {
+      width: 100%;
+      margin-top: 8px;
+      padding: 10px;
+      background: var(--panel-alt);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn-reset:hover { border-color: var(--accent); color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>4.5 MW GRD Data Centre IRR & Cash Flow Explorer</h1>
+        <div class="subtitle">Modular Data Hall Scaling (4.5 MW GRD), Phase Durations (Weeks), Leverage & Exit Cap Rate</div>
+      </div>
+      <div class="badge" id="headerSummary">7 Halls · 31.5 MW · £462.1M Capex</div>
+    </header>
+
+    <div class="grid">
+      <div class="card">
+        <h2>1. Modular Capacity & Capex</h2>
+        <div class="slider-group">
+          <div class="slider-header"><span>GRD Data Halls (4.5 MW each)</span><span class="slider-val" id="valHalls">7 halls (31.5 MW)</span></div>
+          <input type="range" id="halls" min="1" max="16" step="1" value="7" />
+        </div>
+        <div class="slider-group">
+          <div class="slider-header"><span>Cost per MW Built (£M/MW)</span><span class="slider-val" id="valCostPerMw">£14.67M/MW</span></div>
+          <input type="range" id="costPerMw" min="9.00" max="22.00" step="0.05" value="14.67" />
+        </div>
+        <div class="slider-group">
+          <div class="slider-header"><span>Stabilized Net Rent (£M/MW/yr)</span><span class="slider-val" id="valRentPerMw">£1.35M/MW/yr</span></div>
+          <input type="range" id="rentPerMw" min="0.85" max="2.10" step="0.05" value="1.35" />
+        </div>
+
+        <div class="divider"></div>
+        <h2>2. Build Phase Durations (Weeks)</h2>
+        <div class="slider-group">
+          <div class="slider-header"><span>Land & Power</span><span class="slider-val" id="valLandWeeks">26 wks</span></div>
+          <input type="range" id="landWeeks" min="8" max="104" step="2" value="26" />
+        </div>
+        <div class="slider-group">
+          <div class="slider-header"><span>Shell & Core</span><span class="slider-val" id="valShellWeeks">40 wks</span></div>
+          <input type="range" id="shellWeeks" min="16" max="104" step="2" value="40" />
+        </div>
+        <div class="slider-group">
+          <div class="slider-header"><span>OFCI (Fit-Out)</span><span class="slider-val" id="valOfciWeeks">38 wks</span></div>
+          <input type="range" id="ofciWeeks" min="12" max="104" step="2" value="38" />
+        </div>
+
+        <div class="divider"></div>
+        <h2>3. Capital Stack & Exit</h2>
+        <div class="slider-group">
+          <div class="slider-header"><span>Debt Leverage (% LTC)</span><span class="slider-val" id="valLtc">60%</span></div>
+          <input type="range" id="ltc" min="0" max="75" step="5" value="60" />
+        </div>
+        <div class="slider-group">
+          <div class="slider-header"><span>Debt Interest Rate (%)</span><span class="slider-val" id="valDebtRate">6.25%</span></div>
+          <input type="range" id="debtRate" min="3.50" max="9.50" step="0.25" value="6.25" />
+        </div>
+        <div class="slider-group">
+          <div class="slider-header"><span>Exit Cap Rate (%)</span><span class="slider-val" id="valExitCap">5.50%</span></div>
+          <input type="range" id="exitCap" min="4.25" max="7.50" step="0.25" value="5.50" />
+        </div>
+
+        <button class="btn-reset" id="resetBtn">Reset to 31.5 MW / £462M Baseline</button>
+      </div>
+
+      <div>
+        <div class="kpi-grid">
+          <div class="kpi"><div class="kpi-label">Total Build Capex</div><div class="kpi-value" id="kpiCapex">£462.1M</div><div class="kpi-sub" id="kpiYoc">Yield on Cost: 9.20%</div></div>
+          <div class="kpi"><div class="kpi-label">Total Build Schedule</div><div class="kpi-value" id="kpiWeeks">104 wks</div><div class="kpi-sub" id="kpiYears">2.00 yrs total phases</div></div>
+          <div class="kpi"><div class="kpi-label">Gross Exit Valuation</div><div class="kpi-value" id="kpiExit">£773.2M</div><div class="kpi-sub" id="kpiNoi">Stabilized NOI: £42.5M/yr</div></div>
+          <div class="kpi"><div class="kpi-label">Baseline Levered IRR</div><div class="kpi-value pos" id="kpiIrrBase">25.1%</div><div class="kpi-sub" id="kpiIrrPhased">Staged OFCI IRR: 26.6%</div></div>
+          <div class="kpi"><div class="kpi-label">12-Mo Grid Delay IRR</div><div class="kpi-value neg" id="kpiIrrDelay">18.4%</div><div class="kpi-sub" id="kpiIrrSpread">Delay Drag: -670 bps</div></div>
+        </div>
+
+        <div class="card">
+          <h2>Cumulative Levered Equity Cash Flow (£M) — Years 0 to 6</h2>
+          <div class="chart-wrap"><canvas id="cfChart"></canvas></div>
+        </div>
+
+        <div class="card" style="margin-top:20px;overflow-x:auto">
+          <h2>Annual Net Equity Cash Flow Ledger (£M)</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Scenario</th><th>Yr 0</th><th>Yr 1</th><th>Yr 2</th><th>Yr 3</th><th>Yr 4</th><th>Yr 5</th><th>Yr 6</th><th>Levered IRR</th>
+              </tr>
+            </thead>
+            <tbody id="ledgerBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>
