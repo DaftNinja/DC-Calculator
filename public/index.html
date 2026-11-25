@@ -225,6 +225,15 @@
         <div class="card">
           <h2>Cumulative Levered Equity Cash Flow (£M) — Years 0 to 6</h2>
           <div class="chart-wrap"><div style="position:relative;height:320px;width:100%;"><canvas id="cashChart"></canvas></div></div>
+        <div id="baselineIrrCard" style="margin-top:18px;padding:16px;background:#1e293b;border:1px solid #334155;border-radius:12px;clear:both;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap;">
+            <span style="font-size:0.85rem;font-weight:700;letter-spacing:0.04em;color:#e2e8f0;">BASELINE LEVERED IRR OVER TIME (YR 0 TO YR 6)</span>
+            <span id="baselineIrrTrajectoryNote" style="font-size:0.78rem;color:#94a3b8;">16% Hurdle · Implied IRR by exit year</span>
+          </div>
+          <div style="position:relative;height:240px;width:100%;">
+            <canvas id="baselineIrrChart"></canvas>
+          </div>
+        </div>
         </div>
 
         <div class="card" style="margin-top:20px;overflow-x:auto">

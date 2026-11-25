@@ -115,6 +115,7 @@ function cumulative(cf) {
 }
 
 let cashChart = null;
+let baselineIrrChart = null;
 
 function initChart() {
   const canvas = byId("cashChart") || document.querySelector("canvas");
@@ -207,6 +208,62 @@ function computeFourMonthPhasedNoi(totalNoi, hallCount, landWks, shellWks, ofciW
     earned += totalNoi * activeShare * dt;
   }
   return earned;
+}
+
+function initBaselineIrrChart() {
+  const canvas = byId("baselineIrrChart");
+  if (!canvas || typeof Chart === "undefined") return;
+  if (baselineIrrChart && typeof baselineIrrChart.destroy === "function") {
+    baselineIrrChart.destroy();
+  }
+  const ctx = canvas.getContext("2d");
+  baselineIrrChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: ["Yr 0", "Yr 1", "Yr 2", "Yr 3", "Yr 4", "Yr 5", "Yr 6"],
+      datasets: [
+        {
+          label: "Baseline Levered IRR (%)",
+          data: [],
+          borderColor: "#38bdf8",
+          backgroundColor: "rgba(56,189,248,0.14)",
+          fill: true,
+          tension: 0.25,
+          borderWidth: 2.5,
+          pointRadius: 4,
+          spanGaps: false
+        },
+        {
+          label: "16% Hurdle / Breakeven",
+          data: [16, 16, 16, 16, 16, 16, 16],
+          borderColor: "#ef4444",
+          backgroundColor: "transparent",
+          borderDash: [5, 5],
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: false
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { labels: { color: "#cbd5e1", boxWidth: 14 } }
+      },
+      scales: {
+        x: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(148,163,184,0.12)" } },
+        y: {
+          ticks: {
+            color: "#94a3b8",
+            callback: function(v) { return v + "%"; }
+          },
+          grid: { color: "rgba(148,163,184,0.12)" }
+        }
+      }
+    }
+  });
 }
 
 function update() {
@@ -379,6 +436,42 @@ function update() {
   setText("kpiIrrDelay", isFinite(irrDelay) ? irrDelay.toFixed(1) + "%" : "N/A");
   const dragBps = isFinite(irrBase) && isFinite(irrDelay) ? Math.round((irrDelay - irrBase) * 100) : 0;
   setText("kpiDelayDrag", "Delay Drag: " + (dragBps >= 0 ? "+" : "") + dragBps + " bps");
+
+  if (!baselineIrrChart && byId("baselineIrrChart")) {
+    initBaselineIrrChart();
+  }
+  const irrOverTime = cfBase.map(function(_, yr) {
+    if (yr < 2) return null;
+    const windowCfs = [];
+    for (let i = 0; i <= yr; i++) {
+      let amt = cfBase[i];
+      if (i === yr) {
+        if (yr === 5) {
+          amt = cfBase[5];
+        } else if (yr === 6) {
+          amt = cfBase[5] + cfBase[6];
+        } else {
+          const opCash = stabilizedNoi * (yr === 2 ? 0.35 : yr === 3 ? 0.75 : 1.0) - annualInterest;
+          amt = opCash + netExit;
+        }
+      }
+      windowCfs.push([i, amt]);
+    }
+    const hasNeg = windowCfs.some(function(p) { return p[1] < 0; });
+    const hasPos = windowCfs.some(function(p) { return p[1] > 0; });
+    if (!hasNeg || !hasPos) return null;
+    const r = computeTimedIRR(windowCfs);
+    return isFinite(r) ? +(r * 100).toFixed(1) : null;
+  });
+  if (baselineIrrChart && baselineIrrChart.data && Array.isArray(baselineIrrChart.data.datasets)) {
+    if (baselineIrrChart.data.datasets[0]) baselineIrrChart.data.datasets[0].data = irrOverTime;
+    if (baselineIrrChart.data.datasets[1]) baselineIrrChart.data.datasets[1].data = [16, 16, 16, 16, 16, 16, 16];
+    baselineIrrChart.update("none");
+  }
+  setText(
+    "baselineIrrTrajectoryNote",
+    "16% Hurdle · Yr 5 IRR: " + (isFinite(irrBase) ? irrBase.toFixed(1) + "%" : "N/A") + " · Yr 6 Exit: " + (irrOverTime[6] !== null ? irrOverTime[6].toFixed(1) + "%" : "N/A")
+  );
 
   if (cashChart && cashChart.data && Array.isArray(cashChart.data.datasets)) {
     const ds = cashChart.data.datasets;
