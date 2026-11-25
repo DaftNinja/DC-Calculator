@@ -642,26 +642,132 @@ function update() {
   );
 
   if (cashChart && cashChart.data && Array.isArray(cashChart.data.datasets)) {
-    const toMonthlySeries = function(yearlyArr) {
-      const cum = cumulative(yearlyArr);
+    const buildMonthlyCumulative = function(cfg) {
       const out = [];
+      let cum = 0;
+      const exitYr = cfg.exitYr;
+      const delayShift = cfg.delayShift || 0;
+      const noiMult = cfg.noiMult || 1;
+      const exitMult = cfg.exitMult || 1;
+      const eqMult = cfg.eqMult || 1;
+      const eqLandShare = cfg.eqLandShare !== undefined ? cfg.eqLandShare : 0.45;
+      const eqShellShare = cfg.eqShellShare !== undefined ? cfg.eqShellShare : 0.35;
+      const eqOfciShare = cfg.eqOfciShare !== undefined ? cfg.eqOfciShare : 0.20;
+
+      const stageEqLand = totalEquity * eqMult * eqLandShare;
+      const stageEqShell = totalEquity * eqMult * eqShellShare;
+      const stageEqOfci = totalEquity * eqMult * eqOfciShare;
+
+      const mLand = Math.max(1, Math.round(landWeeks / (52 / 12)));
+      const mShell = Math.max(1, Math.round(shellWeeks / (52 / 12)));
+      const mOfci = Math.max(1, Math.round(ofciWeeks / (52 / 12)));
+      const mBuildEnd = Math.min(72, mLand + mShell + mOfci);
+
       for (let m = 0; m <= 72; m++) {
-        const yrExact = m / 12;
-        const y0 = Math.min(6, Math.floor(yrExact));
-        const y1 = Math.min(6, y0 + 1);
-        const frac = yrExact - y0;
-        const v0 = cum[y0] || 0;
-        const v1 = cum[y1] || 0;
-        out.push(+(v0 + (v1 - v0) * frac).toFixed(2));
+        const tPrev = Math.max(0, (m - 1) / 12);
+        const tCurr = m / 12;
+        let stepCf = 0;
+
+        if (m > 0) {
+          // Monthly equity draws across Land & Power -> Shell & Core -> OFCI
+          if (m <= mLand) {
+            stepCf -= stageEqLand / mLand;
+          } else if (m <= mLand + mShell) {
+            stepCf -= stageEqShell / mShell;
+          } else if (m <= mBuildEnd) {
+            stepCf -= stageEqOfci / mOfci;
+          }
+
+          // Monthly interest on sequential cumulative drawn debt (shifted if delayed)
+          const midYrEff = Math.max(0, ((tPrev + tCurr) / 2) - delayShift);
+          const drawnDebt = cumulativeDrawnDebtAt(midYrEff);
+          stepCf -= (drawnDebt * debtRate) / 12;
+
+          // Monthly operating NOI once past build/delay
+          if (cfg.isPreLeased) {
+            const rfsStartYr = Math.max(0, tOfciYr - (ofciWeeks / 52));
+            if (tCurr > rfsStartYr && tCurr <= exitYr) {
+              const ofciProgress = ofciWeeks > 0 ? Math.min(1, Math.max(0, (tCurr - rfsStartYr) / (ofciWeeks / 52))) : 1;
+              const hallFactor = tCurr <= tOfciYr ? (0.25 + 0.75 * ofciProgress) : 1.0;
+              stepCf += (stabilizedNoi * hallFactor) / 12;
+            }
+          } else {
+            const effOpYr = tCurr - delayShift;
+            if (effOpYr > 1.5 && tCurr <= exitYr) {
+              let ramp = 0;
+              if (effOpYr <= 2.5) ramp = 0.35;
+              else if (effOpYr <= 3.5) ramp = 0.75;
+              else ramp = 1.0;
+              stepCf += (stabilizedNoi * ramp * noiMult) / 12;
+            }
+          }
+        }
+
+        // Terminal net exit proceeds when crossing exitYr
+        if (exitYr !== null && tPrev < exitYr && tCurr >= exitYr) {
+          stepCf += netExit * exitMult;
+        }
+
+        cum += stepCf;
+        out.push(+cum.toFixed(2));
       }
       return out;
     };
+
     const ds = cashChart.data.datasets;
-    if (ds[0]) ds[0].data = toMonthlySeries(cfBase);
-    if (ds[1]) ds[1].data = toMonthlySeries(cfPhasedStaged);
-    if (ds[2]) ds[2].data = toMonthlySeries(cfPhasedUpfront);
-    if (ds[3]) ds[3].data = toMonthlySeries(cfDelay);
-    if (ds[4]) ds[4].data = toMonthlySeries(cfPreLeased);
+    if (ds[0]) {
+      ds[0].data = buildMonthlyCumulative({
+        exitYr: 5,
+        noiMult: 1.0,
+        exitMult: 1.0,
+        eqLandShare: 0.45,
+        eqShellShare: 0.35,
+        eqOfciShare: 0.20
+      });
+    }
+    if (ds[1]) {
+      ds[1].data = buildMonthlyCumulative({
+        exitYr: 5,
+        noiMult: 1.03 * stagedFactor,
+        exitMult: 1.02,
+        eqMult: 0.98,
+        eqLandShare: 0.40,
+        eqShellShare: 0.35,
+        eqOfciShare: 0.25
+      });
+    }
+    if (ds[2]) {
+      ds[2].data = buildMonthlyCumulative({
+        exitYr: 5,
+        noiMult: 0.98,
+        exitMult: 1.0,
+        eqMult: 1.02,
+        eqLandShare: 0.42,
+        eqShellShare: 0.33,
+        eqOfciShare: 0.25
+      });
+    }
+    if (ds[3]) {
+      ds[3].data = buildMonthlyCumulative({
+        exitYr: 6,
+        delayShift: 1.0,
+        noiMult: 1.0,
+        exitMult: 1.0,
+        eqLandShare: 0.45,
+        eqShellShare: 0.35,
+        eqOfciShare: 0.20
+      });
+    }
+    if (ds[4]) {
+      ds[4].data = buildMonthlyCumulative({
+        exitYr: Math.min(6, exitYears),
+        isPreLeased: true,
+        exitMult: 1.0,
+        eqLandShare: 0.45,
+        eqShellShare: 0.35,
+        eqOfciShare: 0.20
+      });
+    }
     cashChart.update("none");
   }
 
