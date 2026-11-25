@@ -1,0 +1,15 @@
+{
+  "name": "dc-calculator",
+  "version": "1.0.0",
+  "description": "4.5 MW GRD Data Centre Cash Flow and IRR Scenario Explorer",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
