@@ -117,8 +117,14 @@ function cumulative(cf) {
 let cashChart = null;
 
 function initChart() {
-  const canvas = byId("cashChart");
+  const canvas = byId("cashChart") || document.querySelector("canvas");
   if (!canvas || typeof Chart === "undefined") return;
+  if (!canvas.parentElement || canvas.parentElement.clientHeight === 0) {
+    canvas.style.height = "300px";
+  }
+  if (cashChart && typeof cashChart.destroy === "function") {
+    cashChart.destroy();
+  }
   const ctx = canvas.getContext("2d");
   cashChart = new Chart(ctx, {
     type: "line",
@@ -346,9 +352,34 @@ function update() {
     ];
 
     tbody.innerHTML = rows.map(function(r) {
-      const cells = r.cf.map(function(v) { return "<td>" + fmtLedger(v) + "</td>"; }).join("");
-      const irrText = isFinite(r.irr) ? r.irr.toFixed(1) + "%" : "N/A";
-      return "<tr><td><strong>" + r.name + "</strong></td>" + cells + "<td><strong>" + irrText + "</strong></td></tr>";
+      const cells = r.cf.map(function(v) {
+        let color = "#94a3b8";
+        let bg = "transparent";
+        if (v < -0.05) {
+          color = "#fca5a5";
+          bg = "rgba(248,113,113,0.12)";
+        } else if (v > 0.05) {
+          color = "#6ee7b7";
+          bg = "rgba(52,211,153,0.12)";
+        }
+        return '<td style="color:' + color + ';background:' + bg + ';font-variant-numeric:tabular-nums;">' + fmtLedger(v) + '</td>';
+      }).join("");
+      const hasIrr = isFinite(r.irr);
+      const irrText = hasIrr ? r.irr.toFixed(1) + "%" : "N/A";
+      let irrColor = "#cbd5e1";
+      let irrBg = "rgba(148,163,184,0.14)";
+      if (hasIrr && r.irr >= 25) {
+        irrColor = "#6ee7b7";
+        irrBg = "rgba(52,211,153,0.18)";
+      } else if (hasIrr && r.irr >= 15) {
+        irrColor = "#fde68a";
+        irrBg = "rgba(251,191,36,0.18)";
+      } else if (hasIrr && r.irr < 15) {
+        irrColor = "#fca5a5";
+        irrBg = "rgba(248,113,113,0.18)";
+      }
+      const irrBadge = '<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-weight:700;color:' + irrColor + ';background:' + irrBg + ';">' + irrText + '</span>';
+      return '<tr style="border-bottom:1px solid rgba(148,163,184,0.12);"><td style="color:#f1f5f9;"><strong>' + r.name + '</strong></td>' + cells + '<td>' + irrBadge + '</td></tr>';
     }).join("");
   }
 }
