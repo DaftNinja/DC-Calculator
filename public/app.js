@@ -1,3 +1,39 @@
+const CURRENCIES = {
+  GBP: { code: "GBP", symbol: "£", rateFromGbp: 1.0, locale: "en-GB", unitLabel: "M" },
+  EUR: { code: "EUR", symbol: "€", rateFromGbp: 1.18, locale: "de-DE", unitLabel: "M" },
+  INR: { code: "INR", symbol: "₹", rateFromGbp: 106.0, locale: "en-IN", unitLabel: "M" },
+  JPY: { code: "JPY", symbol: "¥", rateFromGbp: 195.0, locale: "ja-JP", unitLabel: "M" }
+};
+
+function getActiveCurrency() {
+  const el = typeof byId === "function" ? byId("currencySelect") : document.getElementById("currencySelect");
+  const code = el && CURRENCIES[el.value] ? el.value : "GBP";
+  return CURRENCIES[code];
+}
+
+function fxVal(gbpMillions) {
+  const c = getActiveCurrency();
+  return (Number(gbpMillions) || 0) * c.rateFromGbp;
+}
+
+function fmtCurM(gbpMillions, decimals) {
+  const c = getActiveCurrency();
+  const val = fxVal(gbpMillions);
+  const d = typeof decimals === "number" ? decimals : (Math.abs(val) >= 1000 ? 0 : 1);
+  const sign = val < 0 ? "-" : "";
+  const absFormatted = Math.abs(val).toLocaleString(c.locale, { minimumFractionDigits: d, maximumFractionDigits: d });
+  return sign + c.symbol + absFormatted + c.unitLabel;
+}
+
+function fmtCurUnit(gbpVal, decimals, suffix) {
+  const c = getActiveCurrency();
+  const val = (Number(gbpVal) || 0) * c.rateFromGbp;
+  const d = typeof decimals === "number" ? decimals : 2;
+  const sign = val < 0 ? "-" : "";
+  const formatted = Math.abs(val).toLocaleString(c.locale, { minimumFractionDigits: d, maximumFractionDigits: d });
+  return sign + c.symbol + formatted + (suffix || "");
+}
+
 "use strict";
 
 const DEFAULTS = {
@@ -33,13 +69,13 @@ function setText(id, text) {
   if (el) el.textContent = text;
 }
 
-function fmtM(val) {
+function fmtCurM(val) {
   if (!isFinite(val)) return "£0.0M";
   const sign = val < 0 ? "-" : "";
   return sign + "£" + Math.abs(val).toFixed(1) + "M";
 }
 
-function fmtLedger(val) {
+function fmtCurM(val) {
   if (!isFinite(val)) return "£0.0M";
   const sign = val < 0 ? "-" : "+";
   return sign + "£" + Math.abs(val).toFixed(1) + "M";
@@ -151,7 +187,7 @@ function initChart() {
         y: {
           ticks: {
             color: "#94a3b8",
-            callback: function(v) { return "£" + v + "M"; }
+            callback: function(v) { return getActiveCurrency().symbol + v + "M"; }
           },
           grid: { color: "rgba(148,163,184,0.12)" }
         }
@@ -328,7 +364,7 @@ function update() {
     stabilizedNoi = targetEl ? +targetEl.value : DEFAULTS.targetNoi;
     rentPerMw = totalMw > 0 ? stabilizedNoi / (totalMw * 0.012) : 0;
     if (rentEl) rentEl.disabled = true;
-    setText("valTargetNoi", "£" + stabilizedNoi.toFixed(1) + "M/yr");
+    setText("valTargetNoi", fmtCurM(stabilizedNoi, 1) + "/yr");
     if (modeComment) {
       modeComment.textContent = "Target NOI locked at £" + stabilizedNoi.toFixed(1) + "M/yr; implied Net Rent is back-solved to £" + rentPerMw.toFixed(2) + "/kW/mo.";
     }
@@ -340,7 +376,7 @@ function update() {
       const maxVal = +targetEl.max || 250;
       const clampedNoi = Math.max(minVal, Math.min(maxVal, +stabilizedNoi.toFixed(1)));
       targetEl.value = clampedNoi;
-      setText("valTargetNoi", "£" + stabilizedNoi.toFixed(1) + "M/yr");
+      setText("valTargetNoi", fmtCurM(stabilizedNoi, 1) + "/yr");
     }
     if (modeComment) {
       modeComment.textContent = "Auto mode: Stabilized NOI is calculated from Capacity (MW) × Rent (£/kW/mo) × 0.012.";
@@ -352,8 +388,8 @@ function update() {
   setText("pageTitle", grdMw.toFixed(1) + " MW GRD Data Centre IRR & Cash Flow Explorer");
   setText("pageSubtitle", "Modular Data Hall Scaling (" + grdMw.toFixed(1) + " MW GRD), Phase Durations (Weeks), Leverage & Yield on Cost");
   setText("valHalls", halls + " halls (" + totalMw.toFixed(1) + " MW)");
-  setText("valCostPerMw", "£" + costPerMw.toFixed(2) + "M/MW");
-  setText("valRentPerMw", "£" + rentPerMw.toFixed(2) + "/kW/mo");
+  setText("valCostPerMw", fmtCurUnit(costPerMw, 2, "M/MW"));
+  setText("valRentPerMw", fmtCurUnit(rentPerMw, 2, "/kW/mo"));
 
   setText("valLandWeeks", landWeeks + " wks");
   setText("valLandPct", phaseBudgets.land + "% (£" + (totalCapex * landRatio).toFixed(1) + "M)");
@@ -371,12 +407,12 @@ function update() {
   const grossExit = (totalCapex * yocRatio) / exitCap;
   const netExit = grossExit - totalDebt;
 
-  setText("headerSummary", halls + " Halls · " + totalMw.toFixed(1) + " MW · " + fmtM(totalCapex) + " Capex");
-  setText("kpiCapex", fmtM(totalCapex));
+  setText("headerSummary", halls + " Halls · " + totalMw.toFixed(1) + " MW · " + fmtCurM(totalCapex) + " Capex");
+  setText("kpiCapex", fmtCurM(totalCapex));
   setText("kpiYoc", "Yield on Cost: " + yocPct.toFixed(2) + "%");
   setText("kpiSchedule", totalWeeks + " wks");
   setText("kpiScheduleSub", buildYears.toFixed(2) + " yrs total phases");
-  setText("kpiExit", fmtM(grossExit));
+  setText("kpiExit", fmtCurM(grossExit));
   setText("kpiNoi", "Stabilized NOI: £" + stabilizedNoi.toFixed(1) + "M/yr (" + (isNoiLocked ? "Locked" : "Auto") + ")");
 
   const capexYr0 = totalEquity * 0.5;
@@ -526,7 +562,7 @@ function update() {
           color = "#6ee7b7";
           bg = "rgba(52,211,153,0.12)";
         }
-        return '<td style="color:' + color + ';background:' + bg + ';font-variant-numeric:tabular-nums;">' + fmtLedger(v) + '</td>';
+        return '<td style="color:' + color + ';background:' + bg + ';font-variant-numeric:tabular-nums;">' + fmtCurM(v) + '</td>';
       }).join("");
       const hasIrr = isFinite(r.irr);
       const irrText = hasIrr ? r.irr.toFixed(1) + "%" : "N/A";
@@ -566,6 +602,11 @@ function resetDefaults() {
 }
 
 function bindControls() {
+  const currencyEl = byId("currencySelect");
+  if (currencyEl) {
+    currencyEl.addEventListener("change", update);
+  }
+
   [
     "grdMw", "halls", "costPerMw", "rentPerMw", "lockNoi", "targetNoi",
     "landWeeks", "shellWeeks", "ofciWeeks", "ltc", "debtRate", "yocInput"
