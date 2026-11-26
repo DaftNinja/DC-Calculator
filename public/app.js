@@ -180,14 +180,26 @@ function initChart() {
       maintainAspectRatio: false,
       interaction: { mode: "index", intersect: false },
       plugins: {
-        legend: { labels: { color: "#cbd5e1", boxWidth: 14 } }
+        legend: { labels: { color: "#cbd5e1", boxWidth: 14 } },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              const c = getActiveCurrency();
+              const y = ctx.parsed && ctx.parsed.y;
+              if (y === null || y === undefined) return ctx.dataset.label;
+              const d = Math.abs(y) >= 1000 ? 0 : 1;
+              const sign = y < 0 ? "-" : "";
+              return ctx.dataset.label + ": " + sign + c.symbol + Math.abs(y).toLocaleString(c.locale, { minimumFractionDigits: d, maximumFractionDigits: d }) + c.unitLabel;
+            }
+          }
+        }
       },
       scales: {
         x: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(148,163,184,0.12)" } },
         y: {
           ticks: {
             color: "#94a3b8",
-            callback: function(v) { return getActiveCurrency().symbol + v + "M"; }
+            callback: function(v) { const c = getActiveCurrency(); return c.symbol + Number(v).toLocaleString(c.locale, { maximumFractionDigits: 0 }) + c.unitLabel; }
           },
           grid: { color: "rgba(148,163,184,0.12)" }
         }
@@ -323,6 +335,15 @@ function initBaselineIrrChart() {
 }
 
 function update() {
+  const activeCur = getActiveCurrency();
+  document.querySelectorAll("[data-gbp-template]").forEach(function(el) {
+    const tpl = el.getAttribute("data-gbp-template");
+    if (!tpl) return;
+    el.textContent = tpl
+      .replace(/£462M/g, activeCur.symbol + Math.round(462 * activeCur.rateFromGbp).toLocaleString(activeCur.locale) + "M")
+      .replace(/£/g, activeCur.symbol);
+  });
+
   const grdMw = numVal("grdMw", DEFAULTS.grdMw);
   const halls = numVal("halls", DEFAULTS.halls);
   const costPerMw = numVal("costPerMw", DEFAULTS.costPerMw);
@@ -347,7 +368,7 @@ function update() {
   const exitCap = 0.055;
 
   // Stabilized NOI can either be derived from Capacity x Rent (Auto) or locked to a target £M/yr
-  // (when locked, implied Net Rent in £/kW/mo is back-solved so MW, Rent, and NOI stay consistent).
+  // (when locked, implied Net Rent in ${getActiveCurrency().symbol}/kW/mo is back-solved so MW, Rent, and NOI stay consistent).
   const lockEl = byId("lockNoi");
   const rentEl = byId("rentPerMw");
   const targetEl = byId("targetNoi");
@@ -379,7 +400,7 @@ function update() {
       setText("valTargetNoi", fmtCurM(stabilizedNoi, 1) + "/yr");
     }
     if (modeComment) {
-      modeComment.textContent = "Auto mode: Stabilized NOI is calculated from Capacity (MW) × Rent (£/kW/mo) × 0.012.";
+      modeComment.textContent = "Auto mode: Stabilized NOI is calculated from Capacity (MW) × Rent (${getActiveCurrency().symbol}/kW/mo) × 0.012.";
     }
   }
 
@@ -533,11 +554,11 @@ function update() {
 
   if (cashChart && cashChart.data && Array.isArray(cashChart.data.datasets)) {
     const ds = cashChart.data.datasets;
-    if (ds[0]) ds[0].data = cumulative(cfBase);
-    if (ds[1]) ds[1].data = cumulative(cfPhasedStaged);
-    if (ds[2]) ds[2].data = cumulative(cfPhasedUpfront);
-    if (ds[3]) ds[3].data = cumulative(cfDelay);
-    if (ds[4]) ds[4].data = cumulative(cfPreLeased);
+    if (ds[0]) ds[0].data = cumulative(cfBase).map(function(x) { return x === null ? null : +fxVal(x).toFixed(2); });
+    if (ds[1]) ds[1].data = cumulative(cfPhasedStaged).map(function(x) { return x === null ? null : +fxVal(x).toFixed(2); });
+    if (ds[2]) ds[2].data = cumulative(cfPhasedUpfront).map(function(x) { return x === null ? null : +fxVal(x).toFixed(2); });
+    if (ds[3]) ds[3].data = cumulative(cfDelay).map(function(x) { return x === null ? null : +fxVal(x).toFixed(2); });
+    if (ds[4]) ds[4].data = cumulative(cfPreLeased).map(function(x) { return x === null ? null : +fxVal(x).toFixed(2); });
     cashChart.update("none");
   }
 

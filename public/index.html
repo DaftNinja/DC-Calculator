@@ -127,7 +127,7 @@
 <div style="display:flex;align-items:center;gap:8px;">
   <label for="currencySelect" style="font-size:12px;color:#cbd5e1;font-weight:600;">Currency</label>
   <select id="currencySelect" style="background:#0f172a;color:#f8fafc;border:1px solid rgba(148,163,184,0.35);border-radius:6px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer;">
-    <option value="GBP" selected>GBP (£)</option>
+    <option value="GBP" selected data-gbp-template="GBP (£)">GBP (£)</option>
     <option value="EUR">Euro (€)</option>
     <option value="INR">India (₹)</option>
     <option value="JPY">Japan (¥)</option>
@@ -137,7 +137,7 @@
         <h1 id="pageTitle">4.5 MW GRD Data Centre IRR & Cash Flow Explorer</h1>
         <div class="subtitle" id="pageSubtitle">Modular Data Hall Scaling (4.5 MW GRD), Phase Durations (Weeks), Leverage & Yield on Cost</div>
       </div>
-      <div class="badge" id="headerSummary">7 Halls · 31.5 MW · £462.1M Capex</div>
+      <div class="badge" id="headerSummary" data-gbp-template="7 Halls · 31.5 MW · £462.1M Capex">7 Halls · 31.5 MW · £462.1M Capex</div>
     </header>
 
     <div class="grid">
@@ -152,11 +152,11 @@
           <input type="range" id="halls" min="1" max="30" step="1" value="4" />
         </div>
         <div class="slider-group">
-          <div class="slider-header"><span>Cost per MW Built (£M/MW)</span><span class="slider-val" id="valCostPerMw">£14.67M/MW</span></div>
+          <div class="slider-header"><span data-gbp-template="Cost per MW Built (£M/MW)">Cost per MW Built (£M/MW)</span><span class="slider-val" id="valCostPerMw" data-gbp-template="£14.67M/MW">£14.67M/MW</span></div>
           <input type="range" id="costPerMw" min="9.00" max="22.00" step="0.05" value="14.67" />
         </div>
         <div class="slider-group">
-          <div class="slider-header"><span>Stabilized Net Rent (£/kW/mo)</span><span class="slider-val" id="valRentPerMw">£112.50/kW/mo</span></div>
+          <div class="slider-header"><span data-gbp-template="Stabilized Net Rent (£/kW/mo)">Stabilized Net Rent (£/kW/mo)</span><span class="slider-val" id="valRentPerMw" data-gbp-template="£112.50/kW/mo">£112.50/kW/mo</span></div>
           <input type="range" id="rentPerMw" min="70.00" max="180.00" step="2.50" value="112.50" />
         </div>
         <div class="slider-group" style="margin-top:10px;padding:10px 12px;background:#273549;border:1px solid #334155;border-radius:8px;">
@@ -168,10 +168,12 @@
             </label>
           </div>
           <div id="targetNoiWrap" style="display:none;margin-top:8px;">
-            <div class="slider-header"><span>Target Stabilized NOI (£M/yr)</span><span class="slider-val" id="valTargetNoi">£12.0M/yr</span></div>
+            <div class="slider-header"><span data-gbp-template="Target Stabilized NOI (£M/yr)">Target Stabilized NOI (£M/yr)</span><span class="slider-val" id="valTargetNoi" data-gbp-template="£12.0M/yr">£12.0M/yr</span></div>
             <input type="range" id="targetNoi" min="5.0" max="250.0" step="0.5" value="12.0" />
           </div>
-          <div id="noiModeComment" style="font-size:0.76rem;color:#94a3b8;margin-top:4px;line-height:1.35;">
+          <div id="noiModeComment" style="font-size:0.76rem;color:#94a3b8;margin-top:4px;line-height:1.35;" data-gbp-template="
+            Auto mode: Stabilized NOI is calculated from Capacity (MW) × Rent (£/kW/mo) × 0.012.
+          ">
             Auto mode: Stabilized NOI is calculated from Capacity (MW) × Rent (£/kW/mo) × 0.012.
           </div>
         </div>
@@ -218,21 +220,21 @@
           <input type="range" id="yocInput" min="4.00" max="16.00" step="0.1" value="9.20" />
         </div>
 
-        <button class="btn-reset" id="resetBtn">Reset to 31.5 MW / £462M Baseline</button>
+        <button class="btn-reset" id="resetBtn" data-gbp-template="Reset to 31.5 MW / £462M Baseline">Reset to 31.5 MW / £462M Baseline</button>
       </div>
 
       <div>
         <div class="kpi-grid">
-          <div class="kpi"><div class="kpi-label">Total Build Capex</div><div class="kpi-value" id="kpiCapex">£462.1M</div><div class="kpi-sub" id="kpiYoc">Yield on Cost: 9.20%</div></div>
+          <div class="kpi"><div class="kpi-label">Total Build Capex</div><div class="kpi-value" id="kpiCapex" data-gbp-template="£462.1M">£462.1M</div><div class="kpi-sub" id="kpiYoc">Yield on Cost: 9.20%</div></div>
           <div class="kpi"><div class="kpi-label">Total Build Schedule</div><div class="kpi-value" id="kpiWeeks">104 wks</div><div class="kpi-sub" id="kpiYears">2.00 yrs total phases</div></div>
-          <div class="kpi"><div class="kpi-label">Gross Exit Valuation</div><div class="kpi-value" id="kpiExit">£773.2M</div><div class="kpi-sub" id="kpiNoi">Stabilized NOI: £12.0M/yr (Auto)</div></div>
+          <div class="kpi"><div class="kpi-label">Gross Exit Valuation</div><div class="kpi-value" id="kpiExit" data-gbp-template="£773.2M">£773.2M</div><div class="kpi-sub" id="kpiNoi" data-gbp-template="Stabilized NOI: £12.0M/yr (Auto)">Stabilized NOI: £12.0M/yr (Auto)</div></div>
           <div class="kpi"><div class="kpi-label">100% Pre-Leased (RFS+9m)</div><div class="kpi-value pos" id="kpiIrrPreLeased">57.6%</div><div class="kpi-sub" id="kpiExitTiming">Exit ~2.75 yrs</div></div>
         <div class="kpi"><div class="kpi-label">Baseline Levered IRR</div><div class="kpi-value pos" id="kpiIrrBase">25.1%</div><div class="kpi-sub" id="kpiIrrPhased">Staged OFCI IRR: 26.6%</div></div>
           <div class="kpi"><div class="kpi-label">12-Mo Grid Delay IRR</div><div class="kpi-value neg" id="kpiIrrDelay">18.4%</div><div class="kpi-sub" id="kpiIrrSpread">Delay Drag: -670 bps</div></div>
         </div>
 
         <div class="card">
-          <h2>Cumulative Levered Equity Cash Flow (£M) — Years 0 to 6</h2>
+          <h2 data-gbp-template="Cumulative Levered Equity Cash Flow (£M) — Years 0 to 6">Cumulative Levered Equity Cash Flow (£M) — Years 0 to 6</h2>
           <div class="chart-wrap"><div style="position:relative;height:320px;width:100%;"><canvas id="cashChart"></canvas></div></div>
         <div id="baselineIrrCard" style="margin-top:18px;padding:16px;background:#1e293b;border:1px solid #334155;border-radius:12px;clear:both;">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap;">
@@ -246,7 +248,7 @@
         </div>
 
         <div class="card" style="margin-top:20px;overflow-x:auto">
-          <h2>Annual Net Equity Cash Flow Ledger (£M)</h2>
+          <h2 data-gbp-template="Annual Net Equity Cash Flow Ledger (£M)">Annual Net Equity Cash Flow Ledger (£M)</h2>
           <table>
             <thead>
               <tr>
