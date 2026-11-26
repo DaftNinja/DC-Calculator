@@ -603,6 +603,8 @@ function update() {
       return '<tr style="border-bottom:1px solid rgba(148,163,184,0.12);"><td style="color:#f1f5f9;"><strong>' + r.name + '</strong></td>' + cells + '<td>' + irrBadge + '</td></tr>';
     }).join("");
   }
+
+  applyCurrencyToDom();
 }
 
 function resetDefaults() {
@@ -668,3 +670,33 @@ document.addEventListener("DOMContentLoaded", function() {
   bindControls();
   update();
 });
+
+function applyCurrencyToDom() {
+  const c = getActiveCurrency();
+  if (!c || c.code === "GBP") {
+    document.querySelectorAll("[data-orig-text]").forEach(function(el) {
+      el.textContent = el.getAttribute("data-orig-text");
+    });
+    return;
+  }
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  let node;
+  while ((node = walker.nextNode())) {
+    const parent = node.parentElement;
+    if (!parent || ["SCRIPT", "STYLE", "OPTION", "SELECT"].includes(parent.tagName)) continue;
+    if (!parent.hasAttribute("data-orig-text")) {
+      parent.setAttribute("data-orig-text", node.nodeValue);
+    }
+    const baseText = parent.getAttribute("data-orig-text");
+    if (baseText && baseText.indexOf("£") !== -1) {
+      node.nodeValue = baseText.replace(/£([d,]+(?:.d+)?)/g, function(_, rawNum) {
+        const parsed = parseFloat(rawNum.replace(/,/g, ""));
+        if (!isFinite(parsed)) return c.symbol + rawNum;
+        const conv = parsed * c.rateFromGbp;
+        const hasDec = rawNum.indexOf(".") !== -1;
+        const decs = hasDec ? Math.min(2, rawNum.split(".")[1].length) : 0;
+        return c.symbol + conv.toLocaleString(c.locale, { minimumFractionDigits: decs, maximumFractionDigits: decs });
+      });
+    }
+  }
+}
