@@ -4,7 +4,7 @@ Interactive cash flow, schedule, and leveraged IRR scenario explorer for modular
 
 ## Features
 
-- **Modular 4.5 MW GRD Scaling:** Adjust data hall count in discrete 4.5 MW multiples alongside cost per MW built (œM/MW) and stabilized net rent (œM/MW/yr).
+- **Modular MW GRD Scaling:** Adjust data hall count in discrete xx MW multiples alongside cost per MW built (œM/MW) and stabilised net rent (œM/MW/yr).
 - **Build Phase Durations (Weeks):** Tailor durations for **Land and Power**, **Shell and Core**, and **OFCI (Fit-Out)** to evaluate total build weeks and schedule sensitivity.
 - **Capital Stack and Exit Assumptions:** Model debt leverage (% LTC), interest rate, and exit cap rate to calculate gross exit valuation, yield on cost, and levered equity IRR.
 - **Scenario Comparison:** Compare **Baseline (On-Time)**, **Phased Power + Staged OFCI**, **Phased Power (Upfront OFCI)**, and **12-Month Grid Delay** with an interactive cumulative cash flow chart and annual ledger table.
