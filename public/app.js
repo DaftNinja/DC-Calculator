@@ -1,3 +1,5 @@
+"use strict";
+
 const CURRENCIES = {
   GBP: { code: "GBP", symbol: "£", rateFromGbp: 1.0, locale: "en-GB", unitLabel: "M" },
   EUR: { code: "EUR", symbol: "€", rateFromGbp: 1.18, locale: "de-DE", unitLabel: "M" },
@@ -18,7 +20,7 @@ function fxVal(gbpMillions) {
 
 function fmtCurM(gbpMillions, decimals) {
   const c = getActiveCurrency();
-  const val = fxVal(gbpMillions);
+  const val = isFinite(gbpMillions) ? fxVal(gbpMillions) : 0;
   const d = typeof decimals === "number" ? decimals : (Math.abs(val) >= 1000 ? 0 : 1);
   const sign = val < 0 ? "-" : "";
   const absFormatted = Math.abs(val).toLocaleString(c.locale, { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -34,7 +36,6 @@ function fmtCurUnit(gbpVal, decimals, suffix) {
   return sign + c.symbol + formatted + (suffix || "");
 }
 
-"use strict";
 
 const DEFAULTS = {
   grdMw: 2.5,
@@ -67,18 +68,6 @@ function byId(id) {
 function setText(id, text) {
   const el = byId(id);
   if (el) el.textContent = text;
-}
-
-function fmtCurM(val) {
-  if (!isFinite(val)) return "£0.0M";
-  const sign = val < 0 ? "-" : "";
-  return sign + "£" + Math.abs(val).toFixed(1) + "M";
-}
-
-function fmtCurM(val) {
-  if (!isFinite(val)) return "£0.0M";
-  const sign = val < 0 ? "-" : "+";
-  return sign + "£" + Math.abs(val).toFixed(1) + "M";
 }
 
 function rebalanceBudgets(changed) {
@@ -368,7 +357,7 @@ function update() {
   const exitCap = 0.055;
 
   // Stabilized NOI can either be derived from Capacity x Rent (Auto) or locked to a target £M/yr
-  // (when locked, implied Net Rent in ${getActiveCurrency().symbol}/kW/mo is back-solved so MW, Rent, and NOI stay consistent).
+  // (when locked, implied Net Rent per kW/mo is back-solved so MW, Rent, and NOI stay consistent).
   const lockEl = byId("lockNoi");
   const rentEl = byId("rentPerMw");
   const targetEl = byId("targetNoi");
@@ -387,7 +376,7 @@ function update() {
     if (rentEl) rentEl.disabled = true;
     setText("valTargetNoi", fmtCurM(stabilizedNoi, 1) + "/yr");
     if (modeComment) {
-      modeComment.textContent = "Target NOI locked at £" + stabilizedNoi.toFixed(1) + "M/yr; implied Net Rent is back-solved to £" + rentPerMw.toFixed(2) + "/kW/mo.";
+      modeComment.textContent = "Target NOI locked at " + fmtCurM(stabilizedNoi, 1) + "/yr; implied Net Rent is back-solved to " + fmtCurUnit(rentPerMw, 2, "/kW/mo") + ".";
     }
   } else {
     if (rentEl) rentEl.disabled = false;
@@ -400,7 +389,7 @@ function update() {
       setText("valTargetNoi", fmtCurM(stabilizedNoi, 1) + "/yr");
     }
     if (modeComment) {
-      modeComment.textContent = "Auto mode: Stabilized NOI is calculated from Capacity (MW) × Rent (${getActiveCurrency().symbol}/kW/mo) × 0.012.";
+      modeComment.textContent = "Auto mode: Stabilized NOI is calculated from Capacity (MW) × Rent (" + activeCur.symbol + "/kW/mo) × 0.012.";
     }
   }
 
@@ -413,11 +402,11 @@ function update() {
   setText("valRentPerMw", fmtCurUnit(rentPerMw, 2, "/kW/mo"));
 
   setText("valLandWeeks", landWeeks + " wks");
-  setText("valLandPct", phaseBudgets.land + "% (£" + (totalCapex * landRatio).toFixed(1) + "M)");
+  setText("valLandPct", phaseBudgets.land + "% (" + fmtCurM(totalCapex * landRatio, 1) + ")");
   setText("valShellWeeks", shellWeeks + " wks");
-  setText("valShellPct", phaseBudgets.shell + "% (£" + (totalCapex * shellRatio).toFixed(1) + "M)");
+  setText("valShellPct", phaseBudgets.shell + "% (" + fmtCurM(totalCapex * shellRatio, 1) + ")");
   setText("valOfciWeeks", ofciWeeks + " wks");
-  setText("valOfciPct", phaseBudgets.ofci + "% (£" + (totalCapex * ofciRatio).toFixed(1) + "M)");
+  setText("valOfciPct", phaseBudgets.ofci + "% (" + fmtCurM(totalCapex * ofciRatio, 1) + ")");
 
   setText("valLtc", ltcPct + "%");
   setText("valDebtRate", debtRatePct.toFixed(2) + "%");
@@ -434,7 +423,7 @@ function update() {
   setText("kpiSchedule", totalWeeks + " wks");
   setText("kpiScheduleSub", buildYears.toFixed(2) + " yrs total phases");
   setText("kpiExit", fmtCurM(grossExit));
-  setText("kpiNoi", "Stabilized NOI: £" + stabilizedNoi.toFixed(1) + "M/yr (" + (isNoiLocked ? "Locked" : "Auto") + ")");
+  setText("kpiNoi", "Stabilized NOI: " + fmtCurM(stabilizedNoi, 1) + "/yr (" + (isNoiLocked ? "Locked" : "Auto") + ")");
 
   const capexYr0 = totalEquity * 0.5;
   const capexYr1 = totalEquity * 0.5;
@@ -604,7 +593,6 @@ function update() {
     }).join("");
   }
 
-  applyCurrencyToDom();
 }
 
 function resetDefaults() {
@@ -670,33 +658,3 @@ document.addEventListener("DOMContentLoaded", function() {
   bindControls();
   update();
 });
-
-function applyCurrencyToDom() {
-  const c = getActiveCurrency();
-  if (!c || c.code === "GBP") {
-    document.querySelectorAll("[data-orig-text]").forEach(function(el) {
-      el.textContent = el.getAttribute("data-orig-text");
-    });
-    return;
-  }
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-  let node;
-  while ((node = walker.nextNode())) {
-    const parent = node.parentElement;
-    if (!parent || ["SCRIPT", "STYLE", "OPTION", "SELECT"].includes(parent.tagName)) continue;
-    if (!parent.hasAttribute("data-orig-text")) {
-      parent.setAttribute("data-orig-text", node.nodeValue);
-    }
-    const baseText = parent.getAttribute("data-orig-text");
-    if (baseText && baseText.indexOf("£") !== -1) {
-      node.nodeValue = baseText.replace(/£([d,]+(?:.d+)?)/g, function(_, rawNum) {
-        const parsed = parseFloat(rawNum.replace(/,/g, ""));
-        if (!isFinite(parsed)) return c.symbol + rawNum;
-        const conv = parsed * c.rateFromGbp;
-        const hasDec = rawNum.indexOf(".") !== -1;
-        const decs = hasDec ? Math.min(2, rawNum.split(".")[1].length) : 0;
-        return c.symbol + conv.toLocaleString(c.locale, { minimumFractionDigits: decs, maximumFractionDigits: decs });
-      });
-    }
-  }
-}
