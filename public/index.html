@@ -236,13 +236,30 @@
         <div class="card">
           <h2 data-gbp-template="Cumulative Levered Equity Cash Flow (£M) — Years 0 to 6">Cumulative Levered Equity Cash Flow (£M) — Years 0 to 6</h2>
           <div class="chart-wrap"><div style="position:relative;height:320px;width:100%;"><canvas id="cashChart"></canvas></div></div>
-        <div id="baselineIrrCard" style="margin-top:18px;padding:16px;background:#1e293b;border:1px solid #334155;border-radius:12px;clear:both;">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap;">
-            <span style="font-size:0.85rem;font-weight:700;letter-spacing:0.04em;color:#e2e8f0;">BASELINE LEVERED IRR OVER TIME (YR 0 TO YR 6)</span>
-            <span id="baselineIrrTrajectoryNote" style="font-size:0.78rem;color:#94a3b8;">16% Hurdle · Implied IRR by exit year</span>
+        <div id="irrBridgeCard" style="margin-top:18px;padding:16px;background:#1e293b;border:1px solid #334155;border-radius:12px;clear:both;">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:6px;flex-wrap:wrap;">
+            <span style="font-size:0.85rem;font-weight:700;letter-spacing:0.04em;color:#e2e8f0;">LEVERED IRR UPSIDE BRIDGE</span>
+            <span id="irrBridgeNote" style="font-size:0.78rem;color:#94a3b8;">16% hurdle</span>
           </div>
-          <div style="position:relative;height:240px;width:100%;">
-            <canvas id="baselineIrrChart"></canvas>
+          <div style="font-size:0.76rem;color:#94a3b8;line-height:1.4;margin-bottom:12px;">
+            Dated monthly model: capex is spent across each build phase by its budget share, NOI starts at each hall's RFS, and the asset is sold a fixed number of months after the last hall goes live. Each bar adds one lever on top of the previous one.
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:4px 18px;margin-bottom:10px;">
+            <div class="slider-group">
+              <div class="slider-header"><span>Earlier RFS (OFCI weeks saved)</span><span class="slider-val" id="valRfsAccel">8 wks</span></div>
+              <input type="range" id="rfsAccelWeeks" min="0" max="26" step="1" value="8" />
+            </div>
+            <div class="slider-group">
+              <div class="slider-header"><span>Lease-up to stabilised (unlet case)</span><span class="slider-val" id="valLeaseUp">12 mos</span></div>
+              <input type="range" id="leaseUpMonths" min="0" max="36" step="1" value="12" />
+            </div>
+            <div class="slider-group">
+              <div class="slider-header"><span>Exit after final RFS</span><span class="slider-val" id="valExitAfterRfs">9 mos</span></div>
+              <input type="range" id="exitAfterRfsMonths" min="3" max="36" step="1" value="9" />
+            </div>
+          </div>
+          <div style="position:relative;height:280px;width:100%;">
+            <canvas id="irrBridgeChart"></canvas>
           </div>
         </div>
         </div>

@@ -52,7 +52,10 @@ const DEFAULTS = {
   ofciPct: 35,
   ltc: 0,
   debtRate: 0.0,
-  yocInput: 9.2
+  yocInput: 9.2,
+  rfsAccelWeeks: 8,
+  leaseUpMonths: 12,
+  exitAfterRfsMonths: 9
 };
 
 let phaseBudgets = {
@@ -140,7 +143,7 @@ function cumulative(cf) {
 }
 
 let cashChart = null;
-let baselineIrrChart = null;
+let irrBridgeChart = null;
 
 function initChart() {
   const canvas = byId("cashChart") || document.querySelector("canvas");
@@ -247,80 +250,223 @@ function computeFourMonthPhasedNoi(totalNoi, hallCount, landWks, shellWks, ofciW
   return earned;
 }
 
-function initBaselineIrrChart() {
-  const canvas = byId("baselineIrrChart");
-  if (!canvas || typeof Chart === "undefined") return;
-  if (baselineIrrChart && typeof baselineIrrChart.destroy === "function") {
-    baselineIrrChart.destroy();
+// ---------------------------------------------------------------------------
+// IRR upside bridge: dated monthly model.
+// Capex is spent evenly within each phase by its budget share, debt funds the LTC share
+// of each draw and accrues interest, NOI starts hall by hall at RFS, and the asset is
+// sold a fixed number of months after the final hall's RFS. Exit value is the gross
+// exit valuation scaled by the share of capacity leased at the exit date.
+// ---------------------------------------------------------------------------
+function datedScenario(p, o) {
+  const ofciW = Math.max(4, p.ofciW - (o.accelWeeks || 0));
+  const landEnd = p.landW / 52;
+  const shellStart = landEnd + (o.gridDelayWeeks || 0) / 52;
+  const shellEnd = shellStart + p.shellW / 52;
+  const ofciEnd = shellEnd + ofciW / 52;
+  const phases = [
+    { s: 0, e: landEnd, capex: p.totalCapex * p.landR },
+    { s: shellStart, e: shellEnd, capex: p.totalCapex * p.shellR },
+    { s: shellEnd, e: ofciEnd, capex: p.totalCapex * p.ofciR }
+  ];
+  const n = Math.max(1, Math.round(p.halls));
+  const rfs = [];
+  for (let k = 1; k <= n; k++) rfs.push(o.phased ? shellEnd + (k / n) * (ofciW / 52) : ofciEnd);
+  const finalRfs = ofciEnd;
+  const exitT = finalRfs + o.exitAfterMonths / 12;
+  const rampYrs = o.preLeased ? 0 : Math.max(0, o.leaseUpMonths) / 12;
+
+  function leasedShare(t) {
+    let sum = 0;
+    for (let k = 0; k < n; k++) {
+      const since = t - rfs[k];
+      if (since < 0) continue;
+      sum += rampYrs <= 0 ? 1 : Math.min(1, since / rampYrs);
+    }
+    return sum / n;
   }
-  const hurdle16LinePlugin = {
-    id: "hurdle16LinePlugin",
+
+  const steps = Math.max(1, Math.ceil(exitT * 12));
+  const dt = exitT / steps;
+  let drawn = 0;
+  const flows = [];
+  for (let i = 0; i < steps; i++) {
+    const t0 = i * dt;
+    const t1 = t0 + dt;
+    let spend = 0;
+    phases.forEach(function(ph) {
+      const len = ph.e - ph.s;
+      if (len <= 0) {
+        if (ph.s >= t0 && ph.s < t1) spend += ph.capex;
+        return;
+      }
+      const ov = Math.max(0, Math.min(t1, ph.e) - Math.max(t0, ph.s));
+      spend += ph.capex * (ov / len);
+    });
+    const interest = drawn * p.debtRate * dt;
+    drawn += spend * p.ltc;
+    const noi = p.stabNoi * leasedShare((t0 + t1) / 2) * dt;
+    let cf = -spend * (1 - p.ltc) - interest + noi;
+    if (i === steps - 1) cf += p.grossExit * leasedShare(exitT) - drawn;
+    flows.push([t1, cf]);
+  }
+  return { irr: computeTimedIRR(flows) * 100, exitT: exitT, finalRfs: finalRfs };
+}
+
+function initIrrBridgeChart() {
+  const canvas = byId("irrBridgeChart");
+  if (!canvas || typeof Chart === "undefined") return;
+  if (irrBridgeChart && typeof irrBridgeChart.destroy === "function") irrBridgeChart.destroy();
+
+  const hurdlePlugin = {
+    id: "bridgeHurdle",
     afterDatasetsDraw(chart) {
       const { ctx, chartArea, scales } = chart;
-      if (!chartArea || !scales || !scales.y) return;
-      const y16 = scales.y.getPixelForValue(16);
-      if (!isFinite(y16)) return;
+      if (!chartArea || !scales.y) return;
+      const y = scales.y.getPixelForValue(16);
+      if (!isFinite(y) || y < chartArea.top || y > chartArea.bottom) return;
       ctx.save();
-      ctx.beginPath();
       ctx.setLineDash([5, 5]);
       ctx.lineWidth = 2;
       ctx.strokeStyle = "#ef4444";
-      ctx.moveTo(chartArea.left, y16);
-      ctx.lineTo(chartArea.right, y16);
+      ctx.beginPath();
+      ctx.moveTo(chartArea.left, y);
+      ctx.lineTo(chartArea.right, y);
       ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#fca5a5";
+      ctx.font = "11px sans-serif";
+      ctx.textAlign = "right";
+      ctx.fillText("16% hurdle", chartArea.right - 4, y - 5);
       ctx.restore();
     }
   };
-  const ctx = canvas.getContext("2d");
-  baselineIrrChart = new Chart(ctx, {
-    type: "line",
+
+  const labelPlugin = {
+    id: "bridgeLabels",
+    afterDatasetsDraw(chart) {
+      const meta = chart.getDatasetMeta(0);
+      const info = chart.$bridgeInfo || [];
+      const ctx = chart.ctx;
+      ctx.save();
+      ctx.font = "bold 11px sans-serif";
+      ctx.textAlign = "center";
+      meta.data.forEach(function(bar, idx) {
+        const it = info[idx];
+        if (!it || !bar) return;
+        const props = bar.getProps(["x", "y", "base"], true);
+        const top = Math.min(props.y, props.base);
+        ctx.fillStyle = it.color;
+        ctx.fillText(it.text, props.x, top - 6);
+      });
+      ctx.restore();
+    }
+  };
+
+  irrBridgeChart = new Chart(canvas.getContext("2d"), {
+    type: "bar",
     data: {
-      labels: ["Yr 0", "Yr 1", "Yr 2", "Yr 3", "Yr 4", "Yr 5", "Yr 6"],
-      datasets: [
-        {
-          label: "Baseline Levered IRR (%)",
-          data: [],
-          borderColor: "#38bdf8",
-          backgroundColor: "rgba(56,189,248,0.14)",
-          fill: true,
-          tension: 0.25,
-          borderWidth: 2.5,
-          pointRadius: 4,
-          spanGaps: false
-        },
-        {
-          label: "16% Hurdle",
-          data: [],
-          borderColor: "#ef4444",
-          backgroundColor: "#ef4444",
-          borderDash: [5, 5],
-          borderWidth: 2,
-          pointRadius: 0,
-          fill: false
-        }
-      ]
+      labels: ["Baseline", "+ Phased RFS", "+ Earlier RFS", "+ Pre-leased", "Upside case", "12-mo grid delay"],
+      datasets: [{ label: "Levered IRR", data: [], backgroundColor: [], borderRadius: 4, borderSkipped: false, maxBarThickness: 64 }]
     },
-    plugins: [hurdle16LinePlugin],
+    plugins: [hurdlePlugin, labelPlugin],
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      interaction: { mode: "index", intersect: false },
+      layout: { padding: { top: 18 } },
       plugins: {
-        legend: { labels: { color: "#cbd5e1", boxWidth: 14 } }
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              const it = (ctx.chart.$bridgeInfo || [])[ctx.dataIndex];
+              return it ? it.tooltip : "";
+            }
+          }
+        }
       },
       scales: {
-        x: { stacked: false, ticks: { color: "#94a3b8" }, grid: { color: "rgba(148,163,184,0.12)" } },
+        x: { ticks: { color: "#94a3b8" }, grid: { display: false } },
         y: {
-          stacked: false,
-          ticks: {
-            color: "#94a3b8",
-            callback: function(v) { return v + "%"; }
-          },
+          ticks: { color: "#94a3b8", callback: function(v) { return v + "%"; } },
           grid: { color: "rgba(148,163,184,0.12)" }
         }
       }
     }
   });
+}
+
+function updateIrrBridge(p) {
+  const accel = numVal("rfsAccelWeeks", DEFAULTS.rfsAccelWeeks);
+  const leaseUp = numVal("leaseUpMonths", DEFAULTS.leaseUpMonths);
+  const exitAfter = numVal("exitAfterRfsMonths", DEFAULTS.exitAfterRfsMonths);
+  const savedWeeks = Math.min(accel, Math.max(0, p.ofciW - 4));
+  setText("valRfsAccel", savedWeeks + " wks" + (savedWeeks < accel ? " (max)" : ""));
+  setText("valLeaseUp", leaseUp + " mos");
+  setText("valExitAfterRfs", exitAfter + " mos");
+
+  const common = { leaseUpMonths: leaseUp, exitAfterMonths: exitAfter };
+  const base = datedScenario(p, Object.assign({}, common, { phased: false, accelWeeks: 0, preLeased: false }));
+  const phased = datedScenario(p, Object.assign({}, common, { phased: true, accelWeeks: 0, preLeased: false }));
+  const early = datedScenario(p, Object.assign({}, common, { phased: true, accelWeeks: accel, preLeased: false }));
+  const upside = datedScenario(p, Object.assign({}, common, { phased: true, accelWeeks: accel, preLeased: true }));
+  const delay = datedScenario(p, Object.assign({}, common, { phased: false, accelWeeks: 0, preLeased: false, gridDelayWeeks: 52 }));
+
+  if (!irrBridgeChart) initIrrBridgeChart();
+  if (!irrBridgeChart) return;
+
+  function fin(v) { return isFinite(v) ? v : null; }
+  function pct(v) { return isFinite(v) ? v.toFixed(1) + "%" : "N/A"; }
+  function bps(d) { return (d >= 0 ? "+" : "") + Math.round(d * 100).toLocaleString("en-GB") + " bps"; }
+  function exitYrs(r) { return " · exit ~" + r.exitT.toFixed(2) + " yrs"; }
+
+  const steps = [base.irr, phased.irr, early.irr, upside.irr];
+  const data = [];
+  const colors = [];
+  const info = [];
+
+  data.push(fin(base.irr) === null ? null : [Math.min(0, base.irr), base.irr]);
+  colors.push("#38bdf8");
+  info.push({ text: pct(base.irr), color: "#e2e8f0", tooltip: "Single RFS at end of OFCI, " + leaseUp + "-mo lease-up: " + pct(base.irr) + exitYrs(base) });
+
+  const stepNotes = [
+    "Halls go live one by one through OFCI",
+    "OFCI shortened by " + savedWeeks + " wks, pulling RFS and exit forward",
+    "Capacity let from RFS, no lease-up ramp"
+  ];
+  const stepRes = [phased, early, upside];
+  for (let k = 1; k <= 3; k++) {
+    const a = steps[k - 1];
+    const b = steps[k];
+    if (!isFinite(a) || !isFinite(b)) {
+      data.push(null); colors.push("#64748b"); info.push(null);
+      continue;
+    }
+    const d = b - a;
+    data.push([Math.min(a, b), Math.max(a, b)]);
+    colors.push(d >= 0 ? "rgba(52,211,153,0.75)" : "rgba(248,113,113,0.75)");
+    info.push({ text: bps(d), color: d >= 0 ? "#6ee7b7" : "#fca5a5", tooltip: stepNotes[k - 1] + ": " + bps(d) + " → " + pct(b) + exitYrs(stepRes[k - 1]) });
+  }
+
+  data.push(fin(upside.irr) === null ? null : [Math.min(0, upside.irr), upside.irr]);
+  colors.push("#34d399");
+  info.push({ text: pct(upside.irr), color: "#6ee7b7", tooltip: "Upside case (all levers): " + pct(upside.irr) + exitYrs(upside) });
+
+  data.push(fin(delay.irr) === null ? null : [Math.min(0, delay.irr), delay.irr]);
+  colors.push("rgba(248,113,113,0.8)");
+  info.push({ text: pct(delay.irr), color: "#fca5a5", tooltip: "Baseline with 12-month grid delay before Shell & Core: " + pct(delay.irr) + exitYrs(delay) });
+
+  irrBridgeChart.data.datasets[0].data = data;
+  irrBridgeChart.data.datasets[0].backgroundColor = colors;
+  irrBridgeChart.$bridgeInfo = info;
+  const vals = [base.irr, phased.irr, early.irr, upside.irr, delay.irr].filter(isFinite);
+  const hi = vals.length ? Math.max.apply(null, vals.concat([16])) : 20;
+  const lo = vals.length ? Math.min.apply(null, vals.concat([0])) : 0;
+  irrBridgeChart.options.scales.y.max = Math.ceil((hi + 4) / 5) * 5;
+  irrBridgeChart.options.scales.y.min = Math.floor(lo / 5) * 5;
+  irrBridgeChart.update("none");
+
+  const uplift = isFinite(base.irr) && isFinite(upside.irr) ? " (" + bps(upside.irr - base.irr) + ")" : "";
+  setText("irrBridgeNote", "16% hurdle · Baseline " + pct(base.irr) + " → Upside " + pct(upside.irr) + uplift);
 }
 
 function update() {
@@ -503,43 +649,12 @@ function update() {
   const dragBps = isFinite(irrBase) && isFinite(irrDelay) ? Math.round((irrDelay - irrBase) * 100) : 0;
   setText("kpiDelayDrag", "Delay Drag: " + (dragBps >= 0 ? "+" : "") + dragBps + " bps");
 
-  if (!baselineIrrChart && byId("baselineIrrChart")) {
-    initBaselineIrrChart();
-  }
-  const irrGateYr = Math.max(2, Math.min(6, Math.ceil(totalWeeks / 52)));
-  const irrOverTime = cfBase.map(function(cfVal, yr) {
-    if (yr < irrGateYr) return null;
-    const windowCfs = [];
-    for (let i = 0; i <= yr; i++) {
-      let amt = cfBase[i];
-      if (i === yr) {
-        if (yr === 5) {
-          amt = cfBase[5];
-        } else if (yr === 6) {
-          amt = cfBase[5] + cfBase[6];
-        } else {
-          const opCash = stabilizedNoi * (yr === 2 ? 0.35 : yr === 3 ? 0.75 : 1.0) - annualInterest;
-          amt = opCash + netExit;
-        }
-      }
-      windowCfs.push([i, amt]);
-    }
-    const hasNeg = windowCfs.some(function(p) { return p[1] < 0; });
-    const hasPos = windowCfs.some(function(p) { return p[1] > 0; });
-    if (!hasNeg || !hasPos) return null;
-    const r = computeTimedIRR(windowCfs);
-    return isFinite(r) ? +(r * 100).toFixed(1) : null;
+  updateIrrBridge({
+    totalCapex: totalCapex, ltc: ltcPct / 100, debtRate: debtRate,
+    landW: landWeeks, shellW: shellWeeks, ofciW: ofciWeeks,
+    landR: landRatio, shellR: shellRatio, ofciR: ofciRatio,
+    halls: halls, stabNoi: stabilizedNoi, grossExit: grossExit
   });
-
-  if (baselineIrrChart && baselineIrrChart.data && Array.isArray(baselineIrrChart.data.datasets)) {
-    if (baselineIrrChart.data.datasets[0]) baselineIrrChart.data.datasets[0].data = irrOverTime;
-    if (baselineIrrChart.data.datasets[1]) baselineIrrChart.data.datasets[1].data = [];
-    baselineIrrChart.update("none");
-  }
-  setText(
-    "baselineIrrTrajectoryNote",
-    "16% Hurdle · Yr 5 IRR: " + (isFinite(irrBase) ? irrBase.toFixed(1) + "%" : "N/A") + " · Yr 6 Exit: " + (irrOverTime[6] !== null ? irrOverTime[6].toFixed(1) + "%" : "N/A")
-  );
 
   if (cashChart && cashChart.data && Array.isArray(cashChart.data.datasets)) {
     const ds = cashChart.data.datasets;
@@ -620,7 +735,8 @@ function bindControls() {
 
   [
     "grdMw", "halls", "costPerMw", "rentPerMw", "lockNoi", "targetNoi",
-    "landWeeks", "shellWeeks", "ofciWeeks", "ltc", "debtRate", "yocInput"
+    "landWeeks", "shellWeeks", "ofciWeeks", "ltc", "debtRate", "yocInput",
+    "rfsAccelWeeks", "leaseUpMonths", "exitAfterRfsMonths"
   ].forEach(function(id) {
     const el = byId(id);
     if (!el) return;
@@ -654,7 +770,7 @@ function bindControls() {
 
 document.addEventListener("DOMContentLoaded", function() {
   initChart();
-  if (typeof initBaselineIrrChart === "function") initBaselineIrrChart();
+  initIrrBridgeChart();
   bindControls();
   update();
 });
